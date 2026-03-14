@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useTimeTracking } from "./context/TimeContext";
 
 type RoomId = "personal" | "hangout" | "reception" | null;
 
@@ -98,13 +99,20 @@ function IconHistory() {
 }
 
 export default function Home() {
-  const [activeRoom, setActiveRoom] = useState<RoomId>("reception");
+  const { activeOffice: activeRoom, startTracking, stopTracking } = useTimeTracking();
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const router = useRouter();
 
+  // If there's no active room on mount, default to reception
+  useEffect(() => {
+    if (activeRoom === null) {
+      startTracking("reception");
+    }
+  }, []);
+
   function handleEnter(roomId: RoomId) {
     if (activeRoom === roomId) return;
-    setActiveRoom(roomId);
+    startTracking(roomId);
   }
 
   return (
@@ -171,7 +179,7 @@ export default function Home() {
         {/* Right Column — Reception & Floor Plan */}
         <div className="w-[380px] shrink-0 overflow-y-auto flex flex-col items-center gap-6 pt-10 px-6 pb-32">
           {/* Reception Card */}
-          <div 
+          <div
             onClick={() => handleEnter("reception")}
             className={`w-full rounded-[16px] p-4 flex items-center justify-between group cursor-pointer border-2 transition-colors duration-200
               ${activeRoom === "reception" ? "bg-[#1d1d1f] border-[#3a82f7]" : "bg-[#1d1d1f] border-transparent hover:bg-[#252528]"}
@@ -189,20 +197,20 @@ export default function Home() {
 
           {/* Floor Plan Overview (Real layout projection) */}
           <div className="w-full">
-            <div className="w-full rounded-[18px] bg-[#1d1d1f] p-4 flex flex-col gap-2">
-              <div className="text-[13px] font-semibold text-[#e5e5ea] mb-2 ml-1">Core Team</div>
-              
+            <div className="w-full rounded-[18px] bg-[#1d1d1f] p-4 flex flex-col items-center gap-2">
+              <div className="text-[13px] font-semibold text-[#e5e5ea] mb-2 w-full ml-1">Core Team</div>
+
               {/* Personal Office Mini */}
-              <div className={`w-full h-[40px] rounded-md bg-[#28272c] relative border-2 transition-colors
+              <div className={`w-[43%] h-[40px] rounded-md bg-[#28272c] relative border-2 transition-colors
                 ${activeRoom === "personal" ? "border-[#3a82f7]" : "border-transparent"}`}
               >
                 {activeRoom === "personal" && (
                   <div className="absolute bottom-1.5 left-1.5 w-[18px] h-[18px] rounded-full bg-white flex items-center justify-center text-[10px] font-bold text-[#1c1c1e]">R</div>
                 )}
               </div>
-              
+
               {/* Hangout Room Mini */}
-              <div className={`w-full h-[64px] rounded-md bg-[#28272c] relative border-2 transition-colors
+              <div className={`w-[43%] h-[64px] rounded-md bg-[#28272c] relative border-2 transition-colors
                 ${activeRoom === "hangout" ? "border-[#3a82f7]" : "border-transparent"}`}
               >
                 {activeRoom === "hangout" && (
@@ -235,7 +243,7 @@ export default function Home() {
       >
         {/* Left — Plus */}
         <button className="nav-btn" aria-label="Add">
-          <img src="/icons/plus.png" width={22} height={22} alt="Plus" className="brightness-0 invert opacity-70 group-hover:opacity-100 transition-opacity" />
+          <img src="/icons/plus.png" width={22} height={22} alt="Plus" className="brightness-0 invert" />
         </button>
 
         {/* Centre — Open Door */}
@@ -244,8 +252,8 @@ export default function Home() {
         </button>
 
         {/* Right — Folder */}
-        <button className="nav-btn" aria-label="Files">
-          <img src="/icons/folder.png" width={22} height={22} alt="Folder" className="brightness-0 invert opacity-70 group-hover:opacity-100 transition-opacity" />
+        <button className="nav-btn" aria-label="Files" onClick={() => router.push("/stats")}>
+          <img src="/icons/folder.png" width={22} height={22} alt="Folder" className="brightness-0 invert" />
         </button>
       </div>
 
@@ -254,19 +262,22 @@ export default function Home() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-[2px] font-sans font-normal">
           <div className="w-[420px] bg-[#1d1d1f] rounded-[24px] p-6 flex flex-col items-center shadow-2xl animate-[popIn_0.15s_ease]">
             <div className="w-[42px] h-[42px] rounded-full bg-white/10 flex items-center justify-center mb-4 text-white">
-               <IconDoor /> 
+              <img src="/icons/open_door.png" width={24} height={24} alt="Door" className="brightness-0 invert" />
             </div>
             <h3 className="text-[18px] text-[#e5e5ea] mb-6 text-center tracking-wide">Are you leaving office?</h3>
-            
+
             <div className="w-full flex flex-col gap-3">
-              <button 
+              <button
                 onClick={() => setShowLeaveModal(false)}
                 className="w-full min-h-[52px] bg-white text-[#1c1c1e] text-[16px] rounded-[12px] flex items-center justify-center transition-opacity hover:opacity-90"
               >
                 No, missclick!
               </button>
-              <button 
-                onClick={() => router.push('/hallway')}
+              <button
+                onClick={() => {
+                  stopTracking();
+                  router.push('/hallway');
+                }}
                 className="w-full min-h-[52px] bg-[#eb5555] text-white text-[16px] rounded-[12px] flex items-center justify-center transition-colors hover:bg-[#d94f4f] relative"
               >
                 Yes, I need to go.
