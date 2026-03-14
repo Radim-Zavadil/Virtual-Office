@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
 
 type OfficeId = "personal" | "hangout" | "reception" | null;
 
@@ -22,21 +22,34 @@ export function TimeProvider({ children }: { children: ReactNode }) {
     personal: 0, 
     hangout: 0 
   });
+  const lastTickRef = useRef<number | null>(null);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
     if (activeOffice && activeOffice !== "reception") {
+      lastTickRef.current = Date.now();
+
       interval = setInterval(() => {
-        setTimeSpent((prev) => ({
-          ...prev,
-          [activeOffice]: prev[activeOffice as keyof typeof prev] + 1,
-        }));
+        const now = Date.now();
+        if (lastTickRef.current) {
+          const deltaMs = now - lastTickRef.current;
+          const deltaSec = Math.floor(deltaMs / 1000);
+          
+          if (deltaSec > 0) {
+            setTimeSpent((prev) => ({
+              ...prev,
+              [activeOffice]: prev[activeOffice as keyof typeof prev] + deltaSec,
+            }));
+            lastTickRef.current += deltaSec * 1000;
+          }
+        }
       }, 1000);
     }
 
     return () => {
       if (interval) clearInterval(interval);
+      lastTickRef.current = null;
     };
   }, [activeOffice]);
 
