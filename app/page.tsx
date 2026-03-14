@@ -33,7 +33,7 @@ function RoomCard({
         ${height}
       `}
     >
-      <span className="absolute top-[14px] left-[14px] text-[13px] font-medium text-[#e5e5ea] tracking-[0.01em]">
+      <span className="absolute top-[14px] left-[14px] text-[15px] font-medium text-[#e5e5ea] tracking-[0.01em]">
         {title}
       </span>
 
@@ -155,22 +155,38 @@ export default function Home() {
       {/* Main Content Area: Two Columns */}
       <main className="flex-1 flex overflow-hidden">
         {/* Left Column — Offices */}
-        <div className="flex-1 overflow-y-auto flex flex-col items-center gap-3 pt-10 pb-32">
-          <RoomCard
-            title="Radim Zavadil"
-            roomId="personal"
-            activeRoom={activeRoom}
-            height="h-[100px]"
-            avatarBottom
-            onEnter={handleEnter}
-          />
-          <RoomCard
-            title="Hangout / Team Room"
-            roomId="hangout"
-            activeRoom={activeRoom}
-            height="h-[160px]"
-            onEnter={handleEnter}
-          />
+        <div className="flex-1 overflow-y-auto flex flex-col items-center pt-10 pb-32">
+          <div className="flex flex-col items-center gap-3 w-full">
+            <RoomCard
+              title="Radim Zavadil"
+              roomId="personal"
+              activeRoom={activeRoom}
+              height="h-[100px]"
+              avatarBottom
+              onEnter={handleEnter}
+            />
+            <RoomCard
+              title="Hangout / Team Room"
+              roomId="hangout"
+              activeRoom={activeRoom}
+              height="h-[160px]"
+              onEnter={handleEnter}
+            />
+          </div>
+
+          {/* Shelf Section Pushed to Bottom */}
+          <div className="mt-auto pt-8 flex flex-col items-center w-[453px] relative shrink-0">
+            {/* Adding item square */}
+            <div className="w-[60px] h-[60px] rounded-[16px] border-2 border-dashed border-[#8e8e8f60] bg-[#1e1d20] flex items-center justify-center -mb-1 relative z-10 cursor-pointer hover:bg-[#2a292d] transition-colors">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8e8e8f" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </div>
+
+            {/* Shelf Image */}
+            <img src="/icons/shelf.png" alt="Shelf" className="w-full object-contain pointer-events-none" />
+          </div>
         </div>
 
         {/* Vertical Divider */}
@@ -186,7 +202,7 @@ export default function Home() {
             `}
           >
             <div className="flex items-center gap-3">
-              <span className="text-[14px] font-semibold text-[#e5e5ea]">Reception</span>
+              <span className="text-[15px] font-medium text-[#e5e5ea]">Reception</span>
               {activeRoom === "reception" && (
                 <div className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-[12px] font-semibold text-[#1c1c1e] animate-[popIn_0.18s_ease]">
                   R
@@ -198,7 +214,7 @@ export default function Home() {
           {/* Floor Plan Overview (Real layout projection) */}
           <div className="w-full">
             <div className="w-full rounded-[18px] bg-[#1d1d1f] p-4 flex flex-col items-center gap-2">
-              <div className="text-[13px] font-semibold text-[#e5e5ea] mb-2 w-full ml-1">Core Team</div>
+              <div className="text-[15px] font-medium text-[#e5e5ea] mb-2 w-full ml-1">Core Team</div>
 
               {/* Personal Office Mini */}
               <div className={`w-[43%] h-[40px] rounded-md bg-[#28272c] relative border-2 transition-colors
