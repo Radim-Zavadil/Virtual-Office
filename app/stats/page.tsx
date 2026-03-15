@@ -2,10 +2,53 @@
 
 import { useRouter } from "next/navigation";
 import { useTimeTracking } from "../context/TimeContext";
+import { useEffect, useState, useMemo } from "react";
+
+interface Office {
+  id: string;
+  name: string;
+}
+
+interface Floor {
+  offices: Office[];
+}
+
+interface MapData {
+  floors: Floor[];
+}
 
 export default function Stats() {
   const router = useRouter();
-  const { timeSpent, totalTime } = useTimeTracking();
+  const { timeSpent } = useTimeTracking();
+  const [mapData, setMapData] = useState<MapData | null>(null);
+
+  useEffect(() => {
+    fetch("/api/map")
+      .then((res) => res.json())
+      .then((data) => setMapData(data))
+      .catch((err) => console.error("Failed to fetch map data:", err));
+  }, []);
+
+  // Get all existing offices from map data
+  const existingOffices = useMemo(() => {
+    if (!mapData) return [];
+    return mapData.floors.flatMap((f) => f.offices);
+  }, [mapData]);
+
+  // Filter timeSpent to only include existing offices and only those with time > 0
+  const activeStats = useMemo(() => {
+    return existingOffices
+      .map((office) => ({
+        ...office,
+        seconds: timeSpent[office.id] || 0,
+      }))
+      .filter((stat) => stat.seconds > 0);
+  }, [existingOffices, timeSpent]);
+
+  // United (total) time across all EXISTING offices
+  const unitedTime = useMemo(() => {
+    return activeStats.reduce((acc, curr) => acc + curr.seconds, 0);
+  }, [activeStats]);
 
   function formatTime(seconds: number) {
     if (seconds === 0) return "0 min";
@@ -13,19 +56,14 @@ export default function Stats() {
     const m = Math.floor((seconds % 3600) / 60);
     const s = seconds % 60;
     
-    // For demonstration, if under a minute, show seconds so users see it working
     if (h === 0 && m === 0) return `${s} sec`;
     if (h === 0) return `${m} min ${s > 0 ? s + ' s' : ''}`;
     return `${h} hr ${m} min`;
   }
 
   function formatTotal(seconds: number) {
-    if (seconds === 0) return "0 hr 0 min";
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    if (h === 0 && m === 0) return `0 hr ${s} sec`;
-    if (h === 0) return `0 hr ${m} min`;
     return `${h} hr ${m} min`;
   }
 
@@ -34,8 +72,8 @@ export default function Stats() {
     return Math.round((val / total) * 100);
   };
 
-  const personalPct = getPercent(timeSpent.personal, totalTime);
-  const hangoutPct = getPercent(timeSpent.hangout, totalTime);
+  // Color palette for dynamic gauges
+  const colors = ["#32d7dc", "#ab68ff", "#ff6b6b", "#ffd93d", "#6bff6b"];
 
   return (
     <div className="min-h-screen flex flex-col bg-[#0b0b0d] relative items-center font-sans">
@@ -55,62 +93,47 @@ export default function Stats() {
       </header>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col items-center justify-center w-full px-6 -mt-16">
+      <div className="flex-1 flex flex-col items-center w-full px-6 pt-20 pb-20 overflow-y-auto">
         
         {/* Total Time Header */}
         <div className="flex flex-col items-center mb-16">
           <span className="text-[13px] font-medium text-[#8e8e93] mb-1">Total time worked</span>
-          <span className="text-[32px] font-medium text-white tracking-tight">{formatTotal(totalTime)}</span>
+          <span className="text-[32px] font-medium text-white tracking-tight">{formatTotal(unitedTime)}</span>
         </div>
 
-        {/* Gauges Row */}
-        <div className="flex items-center gap-12">
-          
-          {/* Radim Zavadil Gauge */}
-          <div className="flex items-center gap-4">
-            {/* SVG Donut */}
-            <div className="relative w-20 h-20 flex items-center justify-center">
-              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 80 80">
-                <circle cx="40" cy="40" r="34" fill="none" stroke="#252528" strokeWidth="8" />
-                <circle 
-                  cx="40" cy="40" r="34" fill="none" stroke="#32d7dc" strokeWidth="8" 
-                  strokeDasharray={`${2 * Math.PI * 34}`} 
-                  strokeDashoffset={`${2 * Math.PI * 34 * (1 - personalPct / 100)}`}
-                  className="transition-all duration-1000 ease-in-out"
-                />
-              </svg>
-              <span className="absolute text-[14px] font-medium text-[#e5e5ea]">{personalPct}%</span>
-            </div>
-            {/* Labels */}
-            <div className="flex flex-col">
-              <span className="text-[16px] font-medium text-white mb-0.5">Radim Zavadil</span>
-              <span className="text-[13px] font-medium text-[#8e8e93]">{formatTime(timeSpent.personal)}</span>
-            </div>
+        {activeStats.length > 0 ? (
+          <div className="flex flex-wrap justify-center gap-x-12 gap-y-16 max-w-4xl px-4">
+            {activeStats.map((stat, idx) => {
+              const pct = getPercent(stat.seconds, unitedTime);
+              const color = colors[idx % colors.length];
+              return (
+                <div key={stat.id} className="flex items-center gap-4 min-w-[200px]">
+                  {/* SVG Donut */}
+                  <div className="relative w-20 h-20 flex items-center justify-center">
+                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 80 80">
+                      <circle cx="40" cy="40" r="34" fill="none" stroke="#252528" strokeWidth="8" />
+                      <circle 
+                        cx="40" cy="40" r="34" fill="none" stroke={color} strokeWidth="8" 
+                        strokeDasharray={`${2 * Math.PI * 34}`} 
+                        strokeDashoffset={`${2 * Math.PI * 34 * (1 - pct / 100)}`}
+                        className="transition-all duration-1000 ease-in-out"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    <span className="absolute text-[14px] font-medium text-[#e5e5ea]">{pct}%</span>
+                  </div>
+                  {/* Labels */}
+                  <div className="flex flex-col">
+                    <span className="text-[16px] font-medium text-white mb-0.5">{stat.name || "Untitled Office"}</span>
+                    <span className="text-[13px] font-medium text-[#8e8e93]">{formatTime(stat.seconds)}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-
-          {/* Hangout Gauge */}
-          <div className="flex items-center gap-4">
-            {/* SVG Donut */}
-            <div className="relative w-20 h-20 flex items-center justify-center">
-              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 80 80">
-                <circle cx="40" cy="40" r="34" fill="none" stroke="#252528" strokeWidth="8" />
-                <circle 
-                  cx="40" cy="40" r="34" fill="none" stroke="#ab68ff" strokeWidth="8" 
-                  strokeDasharray={`${2 * Math.PI * 34}`} 
-                  strokeDashoffset={`${2 * Math.PI * 34 * (1 - hangoutPct / 100)}`}
-                  className="transition-all duration-1000 ease-in-out"
-                />
-              </svg>
-              <span className="absolute text-[14px] font-medium text-[#e5e5ea]">{hangoutPct}%</span>
-            </div>
-            {/* Labels */}
-            <div className="flex flex-col">
-              <span className="text-[16px] font-medium text-white mb-0.5">Hangout Room</span>
-              <span className="text-[13px] font-medium text-[#8e8e93]">{formatTime(timeSpent.hangout)}</span>
-            </div>
-          </div>
-
-        </div>
+        ) : (
+          <div className="text-[#555] text-[15px] font-medium">No time tracked in offices yet.</div>
+        )}
       </div>
     </div>
   );

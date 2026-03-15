@@ -1,12 +1,31 @@
 {
   "floors": [
     {
-      "id": "floor-1",
+      "id": "floor-1773600615172",
       "name": "Core Team",
       "offices": [
-        { "id": "office-1", "name": "Radim Zavadil" },
-        { "id": "office-2", "name": "Hangout" }
+        {
+          "id": "office-1773601269228",
+          "name": "Radim Zavadil",
+          "x": 603,
+          "y": 21,
+          "w": 288,
+          "h": 123
+        },
+        {
+          "id": "office-1773603095897",
+          "name": "Hangout",
+          "x": 605,
+          "y": 158,
+          "w": 288,
+          "h": 155
+        }
       ]
+    },
+    {
+      "id": "floor-1773601833523",
+      "name": "New Floor",
+      "offices": []
     }
   ]
 }
