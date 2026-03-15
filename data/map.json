@@ -1,0 +1,12 @@
+{
+  "floors": [
+    {
+      "id": "floor-1",
+      "name": "Core Team",
+      "offices": [
+        { "id": "office-1", "name": "Radim Zavadil" },
+        { "id": "office-2", "name": "Hangout" }
+      ]
+    }
+  ]
+}
