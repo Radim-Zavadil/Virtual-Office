@@ -101,7 +101,25 @@ function IconHistory() {
 export default function Home() {
   const { activeOffice: activeRoom, startTracking, stopTracking } = useTimeTracking();
   const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [shelfImages, setShelfImages] = useState<string[]>([]);
   const router = useRouter();
+
+  // Load shelf images from local storage on mount
+  useEffect(() => {
+    const savedImages = localStorage.getItem("shelfImages");
+    const oldImage = localStorage.getItem("shelfImage"); // Fallback for previous single image
+    if (savedImages) {
+      try {
+        setShelfImages(JSON.parse(savedImages));
+      } catch (e) {
+        console.error("Failed to parse shelf images");
+      }
+    } else if (oldImage) {
+      setShelfImages([oldImage]);
+      localStorage.setItem("shelfImages", JSON.stringify([oldImage]));
+      localStorage.removeItem("shelfImage");
+    }
+  }, []);
 
   // If there's no active room on mount, default to reception
   useEffect(() => {
@@ -113,6 +131,27 @@ export default function Home() {
   function handleEnter(roomId: RoomId) {
     if (activeRoom === roomId) return;
     startTracking(roomId);
+  }
+
+  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64Str = event.target?.result as string;
+        const newImages = [...shelfImages, base64Str];
+        setShelfImages(newImages);
+        localStorage.setItem("shelfImages", JSON.stringify(newImages));
+      };
+      reader.readAsDataURL(file);
+    }
+    e.target.value = '';
+  }
+
+  function handleRemoveImage(indexToRemove: number) {
+    const newImages = shelfImages.filter((_, index) => index !== indexToRemove);
+    setShelfImages(newImages);
+    localStorage.setItem("shelfImages", JSON.stringify(newImages));
   }
 
   return (
@@ -176,12 +215,34 @@ export default function Home() {
 
           {/* Shelf Section Pushed to Bottom */}
           <div className="mt-auto pt-8 flex flex-col items-center w-[453px] relative shrink-0">
-            {/* Adding item square */}
-            <div className="w-[60px] h-[60px] rounded-[16px] border-2 border-dashed border-[#8e8e8f60] bg-[#1e1d20] flex items-center justify-center -mb-1 relative z-10 cursor-pointer hover:bg-[#2a292d] transition-colors">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8e8e8f" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
+            {/* Added items flex container */}
+            <div className={`flex ${shelfImages.length > 0 ? 'justify-start' : 'justify-center'} gap-4 -mb-1 relative z-10 w-full px-8`}>
+              {shelfImages.map((imgSrc, index) => (
+                <div key={index} className="w-[60px] h-[60px] rounded-[16px] bg-[#1e1d20] relative group shrink-0">
+                  <img src={imgSrc} alt={`Shelf item ${index + 1}`} className="w-full h-full object-cover rounded-[16px]" />
+                  {/* Delete button (small white cross in grey circle in top right corner) */}
+                  <button
+                    onClick={() => handleRemoveImage(index)}
+                    className="absolute -top-2 -right-2 w-[22px] h-[22px] rounded-full bg-[#3a3a3c] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20 hover:bg-[#4a4a4c] shadow-sm"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+              
+              {/* Adding item square */}
+              {shelfImages.length < 5 && (
+                <label className="w-[60px] h-[60px] rounded-[16px] border-2 border-dashed border-[#8e8e8f60] bg-[#1e1d20] flex items-center justify-center cursor-pointer hover:bg-[#2a292d] transition-colors shrink-0">
+                  <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8e8e8f" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </label>
+              )}
             </div>
 
             {/* Shelf Image */}
