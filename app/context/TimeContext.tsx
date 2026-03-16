@@ -10,18 +10,33 @@ interface TimeContextType {
   startTracking: (office: OfficeId) => void;
   stopTracking: () => void;
   totalTime: number;
+  dailyTime: Record<string, number>; // "YYYY-MM-DD" -> seconds
 }
 
 const TimeContext = createContext<TimeContextType | undefined>(undefined);
 
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export function TimeProvider({ children }: { children: ReactNode }) {
   const [activeOffice, setActiveOffice] = useState<OfficeId>(null);
   const [timeSpent, setTimeSpent] = useState<Record<string, number>>({});
+  const [dailyTime, setDailyTime] = useState<Record<string, number>>({});
   const lastTickRef = useRef<number | null>(null);
+
+  // Load persisted daily time from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("dailyOfficeTime");
+      if (saved) setDailyTime(JSON.parse(saved));
+    } catch { /* ignore */ }
+  }, []);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    
+
     if (activeOffice && activeOffice !== "reception") {
       lastTickRef.current = Date.now();
 
@@ -30,12 +45,21 @@ export function TimeProvider({ children }: { children: ReactNode }) {
         if (lastTickRef.current) {
           const deltaMs = now - lastTickRef.current;
           const deltaSec = Math.floor(deltaMs / 1000);
-          
+
           if (deltaSec > 0) {
             setTimeSpent((prev) => ({
               ...prev,
               [activeOffice]: (prev[activeOffice] || 0) + deltaSec,
             }));
+            
+            // Track daily time and persist it
+            const key = todayKey();
+            setDailyTime((prev) => {
+              const updated = { ...prev, [key]: (prev[key] || 0) + deltaSec };
+              try { localStorage.setItem("dailyOfficeTime", JSON.stringify(updated)); } catch { /* ignore */ }
+              return updated;
+            });
+
             lastTickRef.current += deltaSec * 1000;
           }
         }
@@ -50,11 +74,11 @@ export function TimeProvider({ children }: { children: ReactNode }) {
 
   const startTracking = (office: OfficeId) => setActiveOffice(office);
   const stopTracking = () => setActiveOffice(null);
-  
+
   const totalTime = Object.values(timeSpent).reduce((acc, curr) => acc + curr, 0);
 
   return (
-    <TimeContext.Provider value={{ timeSpent, activeOffice, startTracking, stopTracking, totalTime }}>
+    <TimeContext.Provider value={{ timeSpent, activeOffice, startTracking, stopTracking, totalTime, dailyTime }}>
       {children}
     </TimeContext.Provider>
   );

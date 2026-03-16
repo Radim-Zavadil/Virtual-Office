@@ -921,7 +921,7 @@ export default function Home() {
           zIndex: 1000,
         }}
       >
-        <button className="nav-btn" aria-label="Add">
+        <button className="nav-btn" aria-label="Add" onClick={() => router.push("/story")}>
           <img src="/icons/plus.png" width={22} height={22} alt="Plus" className="brightness-0 invert" />
         </button>
 
