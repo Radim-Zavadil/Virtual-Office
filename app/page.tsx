@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTimeTracking } from "./context/TimeContext";
+import { useAuth } from "./context/AuthContext";
+import AuthGuard from "./components/AuthGuard";
 
 type RoomId = string | null;
 
@@ -231,17 +233,14 @@ function OfficeCardCanvas({
           <div style={{ position: "absolute", top: 46, left: 14, right: 14, bottom: 20, display: "flex", flexDirection: "column", gap: 48 }}>
             <div style={{ flex: 1, background: "#242425", borderRadius: 10, position: "relative" }}>
                  {isActive && (
-                  <div
-                    className="w-11 h-11 rounded-full bg-white flex items-center justify-center text-[18px] font-semibold text-[#1c1c1e] animate-[popIn_0.18s_ease]"
+                  <UserAvatarRoom
                     style={{
                       position: "absolute",
                       top: "50%",
                       left: "50%",
                       transform: "translate(-50%, -50%)"
                     }}
-                  >
-                    R
-                  </div>
+                  />
                 )}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gridTemplateRows: "repeat(3, 1fr)", gap: 6, height: 50 }}>
@@ -252,16 +251,13 @@ function OfficeCardCanvas({
           </div>
         ) : (
           isActive && (
-            <div
-              className="w-11 h-11 rounded-full bg-white flex items-center justify-center text-[18px] font-semibold text-[#1c1c1e] animate-[popIn_0.18s_ease]"
+            <UserAvatarRoom
               style={{
                 position: "absolute",
                 left: 14,
-                top: 42, // positioned like existing cards
+                top: 42,
               }}
-            >
-              R
-            </div>
+            />
           )
         )}
       </div>
@@ -347,13 +343,173 @@ function OfficeCardCanvas({
   );
 }
 
+/* ── User avatar in room (reads from auth context) ── */
+function UserAvatarRoom({ style }: { style?: React.CSSProperties }) {
+  const { user } = useAuth();
+  const name = user?.name || "";
+  const avatar = user?.avatar || null;
+
+  if (avatar) {
+    return (
+      <img
+        src={avatar}
+        alt={name}
+        className="animate-[popIn_0.18s_ease]"
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: "50%",
+          objectFit: "cover",
+          ...style,
+        }}
+      />
+    );
+  }
+
+  const initials = name
+    ? name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()
+    : "?";
+
+  return (
+    <div
+      className="animate-[popIn_0.18s_ease]"
+      style={{
+        width: 44,
+        height: 44,
+        borderRadius: "50%",
+        background: "white",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 18,
+        fontWeight: 700,
+        color: "#1c1c1e",
+        letterSpacing: "-0.02em",
+        ...style,
+      }}
+    >
+      {initials}
+    </div>
+  );
+}
+
+/* ── Profile Modal (inline in main page) ── */
+function ProfileModal({ onClose }: { onClose: () => void }) {
+  const router = useRouter();
+  const { user, updateProfile, logout } = useAuth();
+  const [name, setName] = useState(user?.name || "");
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatar || null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setAvatarPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    try {
+      await updateProfile({ name: name.trim() || user?.name, avatar: avatarPreview ?? undefined });
+      onClose();
+    } catch {
+      setError("Failed to save. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleLogout() {
+    await logout();
+    router.replace("/login");
+  }
+
+  const displayName = name || user?.name || "";
+  const initials = displayName
+    ? displayName.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()
+    : "?";
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 3000,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: "rgba(0,0,0,0.6)", backdropFilter: "blur(3px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#1d1d1f", borderRadius: 20, padding: "32px 28px 24px",
+          width: 360, display: "flex", flexDirection: "column", alignItems: "center",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.7)", animation: "popIn 0.18s ease",
+        }}
+      >
+        <h3 style={{ color: "#e5e5ea", fontSize: 17, fontWeight: 600, marginBottom: 24, letterSpacing: "-0.01em" }}>Profile</h3>
+
+        {/* Avatar */}
+        <div style={{ position: "relative", cursor: "pointer", marginBottom: 20 }} onClick={() => fileRef.current?.click()} title="Change photo">
+          {avatarPreview ? (
+            <img src={avatarPreview} alt={displayName} style={{ width: 80, height: 80, borderRadius: "50%", objectFit: "cover" }} />
+          ) : (
+            <div style={{ width: 80, height: 80, borderRadius: "50%", background: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, fontWeight: 700, color: "#1c1c1e" }}>
+              {initials}
+            </div>
+          )}
+          <div style={{ position: "absolute", bottom: 0, right: 0, width: 26, height: 26, borderRadius: "50%", background: "#3a3a3c", border: "2px solid #1d1d1f", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#e5e5ea" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+              <circle cx="12" cy="13" r="4" />
+            </svg>
+          </div>
+          <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleAvatarChange} />
+        </div>
+
+        <p style={{ color: "#6b6b6b", fontSize: 12.5, marginBottom: 16 }}>{user?.email}</p>
+
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Display name"
+          style={{ width: "100%", height: 44, borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)", background: "#28282c", color: "#e5e5ea", fontSize: 14, fontFamily: "inherit", padding: "0 14px", outline: "none", marginBottom: 8, boxSizing: "border-box" }}
+        />
+
+        {error && <p style={{ color: "#f87171", fontSize: 12.5, marginBottom: 8, alignSelf: "flex-start" }}>{error}</p>}
+
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          style={{ width: "100%", height: 44, borderRadius: 8, border: "none", background: "#5e6ad2", color: "#fff", fontSize: 14, fontWeight: 500, fontFamily: "inherit", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1, marginTop: 8, marginBottom: 10, transition: "opacity 0.15s" }}
+        >
+          {saving ? "Saving..." : "Save changes"}
+        </button>
+
+        <button
+          onClick={handleLogout}
+          style={{ width: "100%", height: 40, borderRadius: 8, border: "1px solid rgba(235,85,85,0.3)", background: "transparent", color: "#eb5555", fontSize: 13, fontWeight: 500, fontFamily: "inherit", cursor: "pointer" }}
+        >
+          Log out
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main page ── */
-export default function Home() {
+function HomeContent() {
   const { activeOffice: activeRoom, startTracking, stopTracking } = useTimeTracking();
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [shelfImages, setShelfImages] = useState<string[]>([]);
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
   const [showAddRoomDropdown, setShowAddRoomDropdown] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [mapData, setMapData] = useState<MapData>({ floors: [] });
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -363,6 +519,9 @@ export default function Home() {
   const settingsRef = useRef<HTMLDivElement>(null);
   const addRoomRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const corporateId = searchParams.get("corporateId");
+  const { user } = useAuth();
 
   // Pick the floor object based on ID, fallback to first floor
   const activeFloor = mapData.floors.find((f) => f.id === selectedFloorId) || mapData.floors[0] || null;
@@ -382,16 +541,20 @@ export default function Home() {
 
   // Load map data from API
   useEffect(() => {
-    fetch("/api/map")
+    const url = corporateId ? `/api/map?corporateId=${corporateId}` : "/api/map";
+    fetch(url)
       .then((r) => r.json())
       .then((data: MapData) => {
         setMapData(data);
-        if (data.floors.length > 0 && !selectedFloorId) {
-          setSelectedFloorId(data.floors[0].id);
+        if (data.floors.length > 0) {
+          // If the current selected floor name doesn't exist in new map, switch to first floor
+          if (!selectedFloorId || !data.floors.find(f => f.id === selectedFloorId)) {
+            setSelectedFloorId(data.floors[0].id);
+          }
         }
       })
       .catch(console.error);
-  }, []);
+  }, [corporateId]);
 
   // Default to reception if no active room
   useEffect(() => {
@@ -831,9 +994,7 @@ export default function Home() {
             <div className="flex items-center gap-3">
               <span className="text-[15px] font-medium text-[#e5e5ea]">Reception</span>
               {activeRoom === "reception" && (
-                <div className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-[12px] font-semibold text-[#1c1c1e] animate-[popIn_0.18s_ease]">
-                  R
-                </div>
+                <UserAvatarRoom style={{ width: 28, height: 28, fontSize: 12 }} />
               )}
             </div>
           </div>
@@ -881,23 +1042,17 @@ export default function Home() {
                          <>
                            <div style={{ flex: 1, width: "100%", background: "#242425", borderRadius: 2, position: "relative" }}>
                              {isOccupied && (
-                                <div style={{
-                                  position: "absolute",
-                                  top: "50%",
-                                  left: "50%",
-                                  transform: "translate(-50%, -50%)",
-                                  width: 8,
-                                  height: 8,
-                                  borderRadius: "50%",
-                                  background: "white",
-                                  color: "#1c1c1e",
-                                  fontSize: "5px",
-                                  fontWeight: "bold",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center"
-                                }}>R</div>
-                              )}
+                                 <div style={{
+                                   position: "absolute",
+                                   top: "50%",
+                                   left: "50%",
+                                   transform: "translate(-50%, -50%)",
+                                   width: 6,
+                                   height: 6,
+                                   borderRadius: "50%",
+                                   background: "white",
+                                 }} />
+                               )}
                            </div>
                            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gridTemplateRows: "repeat(3, 1fr)", gap: 1, width: "100%", height: "30%" }}>
                               {Array.from({ length: 15 }).map((_, i) => (
@@ -1075,6 +1230,15 @@ export default function Home() {
                     >
                       Edit Map
                     </div>
+                    <div
+                      className="dropdown-item"
+                      onClick={() => {
+                        setShowSettingsDropdown(false);
+                        setShowProfileModal(true);
+                      }}
+                    >
+                      Profile
+                    </div>
                   </div>
                 )}
               </div>
@@ -1114,6 +1278,19 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* Profile modal */}
+      {showProfileModal && <ProfileModal onClose={() => setShowProfileModal(false)} />}
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <AuthGuard>
+      <Suspense fallback={null}>
+        <HomeContent />
+      </Suspense>
+    </AuthGuard>
   );
 }

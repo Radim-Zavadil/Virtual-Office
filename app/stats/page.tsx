@@ -1,8 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTimeTracking } from "../context/TimeContext";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, Suspense } from "react";
+import AuthGuard from "../components/AuthGuard";
 
 interface Office {
   id: string;
@@ -17,17 +18,20 @@ interface MapData {
   floors: Floor[];
 }
 
-export default function Stats() {
+function StatsContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const corporateId = searchParams.get("corporateId");
   const { timeSpent } = useTimeTracking();
   const [mapData, setMapData] = useState<MapData | null>(null);
 
   useEffect(() => {
-    fetch("/api/map")
+    const url = corporateId ? `/api/map?corporateId=${corporateId}` : "/api/map";
+    fetch(url)
       .then((res) => res.json())
       .then((data) => setMapData(data))
       .catch((err) => console.error("Failed to fetch map data:", err));
-  }, []);
+  }, [corporateId]);
 
   // Get all existing offices from map data
   const existingOffices = useMemo(() => {
@@ -138,3 +142,14 @@ export default function Stats() {
     </div>
   );
 }
+
+export default function Stats() {
+  return (
+    <AuthGuard>
+      <Suspense fallback={null}>
+        <StatsContent />
+      </Suspense>
+    </AuthGuard>
+  );
+}
+

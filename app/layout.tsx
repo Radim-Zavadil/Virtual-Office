@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { TimeProvider } from "./context/TimeContext";
+import { AuthProvider } from "./context/AuthContext";
 
 import "./globals.css";
 
@@ -22,9 +23,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.variable} antialiased`}>
-        <TimeProvider>
-          {children}
-        </TimeProvider>
+        <AuthProvider>
+          <TimeProvider>
+            {children}
+          </TimeProvider>
+        </AuthProvider>
       </body>
     </html>
   );

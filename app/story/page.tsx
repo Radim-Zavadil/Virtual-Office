@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { format } from "date-fns";
 import Link from "next/link";
 import Calendar from "./Calendar";
 import { useTimeTracking } from "../context/TimeContext";
+import AuthGuard from "../components/AuthGuard";
+import { useSearchParams } from "next/navigation";
 
 interface StoryImage {
   src: string;
@@ -36,7 +38,11 @@ function formatDateLabel(dateKey: string): string {
 
 const SLIDE_DURATION = 5000;
 
-export default function StoryPage() {
+function StoryContent() {
+  const searchParams = useSearchParams();
+  const corporateId = searchParams.get("corporateId");
+  const backUrl = corporateId ? `/?corporateId=${corporateId}` : "/";
+
   const [images, setImages] = useState<StoryImage[]>([]);
   const [viewingDate, setViewingDate] = useState<string | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -144,7 +150,7 @@ export default function StoryPage() {
     <div className="flex flex-col h-screen w-full bg-[#0b0b0d] overflow-hidden">
       {/* Header */}
       <div className="h-[64px] bg-[#111] border-b border-white/[0.07] flex items-center justify-between px-6 shrink-0 z-10">
-        <Link href="/" className="flex items-center gap-3 text-[#e5e5ea] hover:opacity-75 transition-opacity">
+        <Link href={backUrl} className="flex items-center gap-3 text-[#e5e5ea] hover:opacity-75 transition-opacity">
           <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="19" y1="12" x2="5" y2="12"></line>
             <polyline points="12 19 5 12 12 5"></polyline>
@@ -271,3 +277,14 @@ export default function StoryPage() {
     </div>
   );
 }
+
+export default function StoryPage() {
+  return (
+    <AuthGuard>
+      <Suspense fallback={null}>
+        <StoryContent />
+      </Suspense>
+    </AuthGuard>
+  );
+}
+

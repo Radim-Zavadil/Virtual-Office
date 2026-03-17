@@ -1,0 +1,16 @@
+[
+  {
+    "id": "user-1773776829707-1eec22eb",
+    "email": "test@example.com",
+    "passwordHash": "$2b$10$z1iS8tZYIT3zi6VHd7XS9.dRcfbfNQTlOdq4U6s5qnRcEsFkEeHmW",
+    "name": "test",
+    "avatar": null
+  },
+  {
+    "id": "user-1773777669001-f9ff3963",
+    "email": "rada07zavadil@gmail.com",
+    "passwordHash": "$2b$10$ecIOGAmR.8sWFlnIB9xO3O.aj685Dcn9bw9zb7TXxR7tmbXOSArkS",
+    "name": "Radim",
+    "avatar": null
+  }
+]
