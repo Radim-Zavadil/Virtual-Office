@@ -13,6 +13,7 @@ interface Office {
   y: number;
   w: number;
   h: number;
+  type?: "office" | "theater";
 }
 
 interface Floor {
@@ -129,8 +130,10 @@ function OfficeCardCanvas({
       if (!resizeStart.current) return;
       const dx = ev.clientX - resizeStart.current.mx;
       const dy = ev.clientY - resizeStart.current.my;
-      const newW = Math.max(MIN_SIZE, Math.min(CANVAS_WIDTH - office.x, resizeStart.current.ow + dx));
-      const newH = Math.max(MIN_SIZE, Math.min(CANVAS_HEIGHT - office.y, resizeStart.current.oh + dy));
+      const minW = office.type === "theater" ? 220 : MIN_SIZE;
+      const minH = office.type === "theater" ? 220 : MIN_SIZE;
+      const newW = Math.max(minW, Math.min(CANVAS_WIDTH - office.x, resizeStart.current.ow + dx));
+      const newH = Math.max(minH, Math.min(CANVAS_HEIGHT - office.y, resizeStart.current.oh + dy));
       onChange({ ...office, w: Math.round(newW), h: Math.round(newH) });
     }
     function onUp() {
@@ -220,18 +223,46 @@ function OfficeCardCanvas({
           </span>
         )}
 
-        {/* User avatar indicator (only if active) */}
-        {isActive && (
-          <div
-            className="w-11 h-11 rounded-full bg-white flex items-center justify-center text-[18px] font-semibold text-[#1c1c1e] animate-[popIn_0.18s_ease]"
-            style={{
-              position: "absolute",
-              left: 14,
-              top: 42, // positioned like existing cards
-            }}
-          >
-            R
+        {office.type === "theater" && (
+            <img src="/icons/theater.png" alt="theater" style={{ position: "absolute", top: 14, right: 14, width: 18, height: 18, pointerEvents: "none", opacity: 0.6 }} />
+        )}
+
+        {office.type === "theater" ? (
+          <div style={{ position: "absolute", top: 46, left: 14, right: 14, bottom: 20, display: "flex", flexDirection: "column", gap: 48 }}>
+            <div style={{ flex: 1, background: "#242425", borderRadius: 10, position: "relative" }}>
+                 {isActive && (
+                  <div
+                    className="w-11 h-11 rounded-full bg-white flex items-center justify-center text-[18px] font-semibold text-[#1c1c1e] animate-[popIn_0.18s_ease]"
+                    style={{
+                      position: "absolute",
+                      top: "50%",
+                      left: "50%",
+                      transform: "translate(-50%, -50%)"
+                    }}
+                  >
+                    R
+                  </div>
+                )}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gridTemplateRows: "repeat(3, 1fr)", gap: 6, height: 50 }}>
+                 {Array.from({ length: 15 }).map((_, i) => (
+                    <div key={i} style={{ background: "#242425", borderRadius: 6 }} />
+                 ))}
+            </div>
           </div>
+        ) : (
+          isActive && (
+            <div
+              className="w-11 h-11 rounded-full bg-white flex items-center justify-center text-[18px] font-semibold text-[#1c1c1e] animate-[popIn_0.18s_ease]"
+              style={{
+                position: "absolute",
+                left: 14,
+                top: 42, // positioned like existing cards
+              }}
+            >
+              R
+            </div>
+          )
         )}
       </div>
 
@@ -322,6 +353,7 @@ export default function Home() {
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [shelfImages, setShelfImages] = useState<string[]>([]);
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
+  const [showAddRoomDropdown, setShowAddRoomDropdown] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [mapData, setMapData] = useState<MapData>({ floors: [] });
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -329,6 +361,7 @@ export default function Home() {
   // Track which floor is selected
   const [selectedFloorId, setSelectedFloorId] = useState<string | null>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
+  const addRoomRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   // Pick the floor object based on ID, fallback to first floor
@@ -375,6 +408,17 @@ export default function Home() {
     if (showSettingsDropdown) document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showSettingsDropdown]);
+
+  // Close add room dropdown when clicked outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (addRoomRef.current && !addRoomRef.current.contains(e.target as Node)) {
+        setShowAddRoomDropdown(false);
+      }
+    }
+    if (showAddRoomDropdown) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showAddRoomDropdown]);
 
   function handleEnter(roomId: string) {
     if (activeRoom === roomId) return;
@@ -454,16 +498,18 @@ export default function Home() {
   }
 
   // ── Office Add / Update ──
-  function handleAddOffice() {
+  function handleAddOffice(type: "office" | "theater") {
     setMapData((prev) => {
       if (!selectedFloorId) return prev;
+      const isTheater = type === "theater";
       const newOffice: Office = {
         id: `office-${Date.now()}`,
-        name: "",
+        name: isTheater ? "Theater" : "",
         x: 0,
         y: 0,
-        w: 120,
-        h: 80,
+        w: isTheater ? 240 : 120,
+        h: isTheater ? 240 : 80,
+        type,
       };
       return {
         ...prev,
@@ -698,40 +744,78 @@ export default function Home() {
         {/* Vertical Divider with Add Room button */}
         <div className="w-[1px] bg-white/[0.12] self-stretch relative">
           {isEditMode && (
-            <button
-              onClick={handleAddOffice}
-              disabled={!activeFloor}
+            <div
+              ref={addRoomRef}
               style={{
                 position: "absolute",
-                top: 25, // moved a little bit up from 40
-                left: -80, // moved roughly 2x width to the left (shifted from center 0)
+                top: 25,
+                left: -80,
                 transform: "translateX(-50%)",
                 zIndex: 200,
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-                padding: "8px 16px",
-                borderRadius: 9999, // pill shape
-                background: "#1e1d22",
-                border: "1px solid rgba(255,255,255,0.1)",
-                color: !activeFloor ? "#555" : "#e5e5ea",
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: !activeFloor ? "not-allowed" : "pointer",
-                fontFamily: "inherit",
-                transition: "background 0.15s, box-shadow 0.15s",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
-                whiteSpace: "nowrap",
               }}
-              onMouseEnter={(e) => { if (activeFloor) (e.currentTarget as HTMLButtonElement).style.background = "#28262c"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "#1e1d22"; }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              Add Room
-            </button>
+              <button
+                onClick={() => activeFloor && setShowAddRoomDropdown((v) => !v)}
+                disabled={!activeFloor}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "8px 16px",
+                  borderRadius: 9999, // pill shape
+                  background: showAddRoomDropdown ? "#28262c" : "#1e1d22",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  color: !activeFloor ? "#555" : "#e5e5ea",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: !activeFloor ? "not-allowed" : "pointer",
+                  fontFamily: "inherit",
+                  transition: "background 0.15s, box-shadow 0.15s",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+                  whiteSpace: "nowrap",
+                }}
+                onMouseEnter={(e) => { if (activeFloor && !showAddRoomDropdown) (e.currentTarget as HTMLButtonElement).style.background = "#28262c"; }}
+                onMouseLeave={(e) => { if (!showAddRoomDropdown) (e.currentTarget as HTMLButtonElement).style.background = "#1e1d22"; }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                Add Room
+              </button>
+
+              {showAddRoomDropdown && activeFloor && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    marginTop: 8,
+                    background: "#252225",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: 10,
+                    padding: 4,
+                    minWidth: 120,
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                    animation: "fadeIn 0.15s ease",
+                  }}
+                >
+                  <div
+                    className="dropdown-item"
+                    onClick={() => { handleAddOffice("office"); setShowAddRoomDropdown(false); }}
+                  >
+                    Office
+                  </div>
+                  <div
+                    className="dropdown-item"
+                    onClick={() => { handleAddOffice("theater"); setShowAddRoomDropdown(false); }}
+                  >
+                    Theater
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -785,25 +869,58 @@ export default function Home() {
                           borderRadius: 4,
                           border: isOccupied ? "1px solid #3a82f7" : "none",
                           display: "flex",
+                          flexDirection: o.type === "theater" ? "column" : "row",
                           alignItems: "center",
                           justifyContent: "center",
-                          overflow: "hidden"
+                          overflow: "hidden",
+                          padding: o.type === "theater" ? 2 : 0,
+                          gap: o.type === "theater" ? 6 : 0
                         }}
                       >
-                        {isOccupied && (
-                          <div style={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: "50%",
-                            background: "white",
-                            color: "#1c1c1e",
-                            fontSize: "7px",
-                            fontWeight: "bold",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center"
-                          }}>R</div>
-                        )}
+                       {o.type === "theater" ? (
+                         <>
+                           <div style={{ flex: 1, width: "100%", background: "#242425", borderRadius: 2, position: "relative" }}>
+                             {isOccupied && (
+                                <div style={{
+                                  position: "absolute",
+                                  top: "50%",
+                                  left: "50%",
+                                  transform: "translate(-50%, -50%)",
+                                  width: 8,
+                                  height: 8,
+                                  borderRadius: "50%",
+                                  background: "white",
+                                  color: "#1c1c1e",
+                                  fontSize: "5px",
+                                  fontWeight: "bold",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center"
+                                }}>R</div>
+                              )}
+                           </div>
+                           <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gridTemplateRows: "repeat(3, 1fr)", gap: 1, width: "100%", height: "30%" }}>
+                              {Array.from({ length: 15 }).map((_, i) => (
+                                <div key={i} style={{ background: "#242425", borderRadius: 1 }} />
+                              ))}
+                           </div>
+                         </>
+                       ) : (
+                          isOccupied && (
+                            <div style={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: "50%",
+                              background: "white",
+                              color: "#1c1c1e",
+                              fontSize: "7px",
+                              fontWeight: "bold",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center"
+                            }}>R</div>
+                          )
+                       )}
                       </div>
                     );
                   })}
