@@ -7,6 +7,7 @@ import { useTimeTracking } from "../context/TimeContext";
 interface CalendarProps {
   storyImages: Record<string, string[]>;
   onDayClick?: (dateKey: string) => void;
+  selectedDate?: string | null;
 }
 
 function formatDuration(seconds: number): string {
@@ -17,7 +18,7 @@ function formatDuration(seconds: number): string {
   return `${m}m`;
 }
 
-export default function Calendar({ storyImages, onDayClick }: CalendarProps) {
+export default function Calendar({ storyImages, onDayClick, selectedDate }: CalendarProps) {
   const today = new Date();
   const [currentDate, setCurrentDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const { dailyTime } = useTimeTracking();
@@ -41,10 +42,24 @@ export default function Calendar({ storyImages, onDayClick }: CalendarProps) {
 
   return (
     <div className="w-[340px] rounded-[16px] bg-[#1c1c1e]/90 backdrop-blur-md p-5 text-[#e5e5ea] flex flex-col shadow-2xl shrink-0">
-      {/* Total time header — always visible */}
+      {/* Total time header — dynamic based on selection */}
       <div className="mb-4 pb-4 border-b border-white/10">
-        <p className="text-[11px] uppercase tracking-widest text-[#555] mb-1 font-medium">Total time in office</p>
-        <p className="text-[22px] font-semibold text-white">{totalSeconds > 0 ? formatDuration(totalSeconds) : "—"}</p>
+        <div className="flex justify-between items-baseline mb-1">
+          <p className="text-[10px] uppercase tracking-widest text-[#555] font-semibold">
+            {selectedDate ? format(new Date(selectedDate + "T00:00:00"), "MMM d") + " Office Time" : "Total time in office"}
+          </p>
+          {selectedDate && (
+            <p className="text-[9px] uppercase tracking-widest text-[#444] font-medium">
+              Total: {totalSeconds > 0 ? formatDuration(totalSeconds) : "0s"}
+            </p>
+          )}
+        </div>
+        <p className="text-[24px] font-bold text-white tracking-tight">
+          {selectedDate 
+            ? (dailyTime[selectedDate] > 0 ? formatDuration(dailyTime[selectedDate]) : "—")
+            : (totalSeconds > 0 ? formatDuration(totalSeconds) : "—")
+          }
+        </p>
       </div>
 
       {/* Calendar Header */}
@@ -82,6 +97,7 @@ export default function Calendar({ storyImages, onDayClick }: CalendarProps) {
           const timeForDay = isCurrentMonth ? (dailyTime[dateKey] || 0) : 0;
           const hasData = hasImages || timeForDay > 0;
           const isToday = isCurrentMonth && format(d, "yyyy-MM-dd") === format(today, "yyyy-MM-dd");
+          const isSelected = isCurrentMonth && dateKey === selectedDate;
 
           return (
             <div key={i} className="flex flex-col items-center py-0.5">
@@ -89,14 +105,23 @@ export default function Calendar({ storyImages, onDayClick }: CalendarProps) {
                 disabled={!isCurrentMonth}
                 onClick={() => isCurrentMonth && onDayClick?.(dateKey)}
                 className={`
-                  w-8 h-8 rounded-full flex items-center justify-center text-[13px] transition-colors
+                  relative w-8 h-8 rounded-full flex items-center justify-center text-[13px] transition-all duration-200
                   ${!isCurrentMonth ? "opacity-0 pointer-events-none" : "cursor-pointer"}
-                  ${hasData ? "bg-[#253960]/80 backdrop-blur-sm text-[#71a1f5] hover:bg-[#2d4677]/80" : ""}
-                  ${!hasData && isCurrentMonth && isToday ? "bg-white/15 text-white" : ""}
-                  ${!hasData && isCurrentMonth && !isToday ? "text-[#a1a1aa] hover:bg-white/10 hover:text-white" : ""}
+                  ${isSelected
+                    ? "bg-white/20 text-white ring-1 ring-white/30 shadow-lg scale-110 font-bold"
+                    : hasData
+                      ? "bg-[#253960]/40 backdrop-blur-sm text-[#71a1f5] hover:bg-white/10 hover:text-white"
+                      : isToday
+                        ? "bg-white/15 text-white"
+                        : "text-[#a1a1aa] hover:bg-white/10 hover:text-white"
+                  }
                 `}
               >
                 {format(d, "d")}
+                {/* dot indicator for data */}
+                {hasData && !isSelected && (
+                  <span className="absolute bottom-[3px] left-1/2 -translate-x-1/2 w-[3px] h-[3px] rounded-full bg-[#71a1f5] opacity-80" />
+                )}
               </button>
             </div>
           );
