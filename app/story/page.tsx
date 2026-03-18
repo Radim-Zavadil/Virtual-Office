@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import Link from "next/link";
 import Calendar from "./Calendar";
 import { useTimeTracking } from "../context/TimeContext";
+import { useAuth } from "../context/AuthContext";
 import AuthGuard from "../components/AuthGuard";
 import { useSearchParams } from "next/navigation";
 
@@ -49,10 +50,12 @@ function StoryContent() {
   const [progress, setProgress] = useState(0);
   // Instagram grid vs story mode: "grid" shows gallery, "story" shows full-screen story player
   const [viewMode, setViewMode] = useState<"grid" | "story">("grid");
+  const [isPlaying, setIsPlaying] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const progressStartRef = useRef<number>(0);
   const { dailyTime } = useTimeTracking();
+  const { user } = useAuth();
 
   useEffect(() => {
     try {
@@ -69,13 +72,20 @@ function StoryContent() {
     setViewingDate(dateKey);
     setCurrentSlide(0);
     setProgress(0);
+    setIsPlaying(true);
     setViewMode("grid");
   };
 
   const startProgress = useCallback(() => {
     if (progressRef.current) clearInterval(progressRef.current);
-    progressStartRef.current = Date.now();
+    
+    // Resume from current progress if it was paused
+    const elapsedSoFar = (progress / 100) * SLIDE_DURATION;
+    progressStartRef.current = Date.now() - elapsedSoFar;
+
     progressRef.current = setInterval(() => {
+      if (!isPlaying) return;
+      
       const elapsed = Date.now() - progressStartRef.current;
       const pct = Math.min((elapsed / SLIDE_DURATION) * 100, 100);
       setProgress(pct);
@@ -94,16 +104,16 @@ function StoryContent() {
         });
       }
     }, 50);
-  }, [viewingImages.length]);
+  }, [viewingImages.length, isPlaying, progress]);
 
   useEffect(() => {
-    if (viewMode === "story" && viewingDate && viewingImages.length > 0) {
+    if (viewMode === "story" && viewingDate && viewingImages.length > 0 && isPlaying) {
       startProgress();
     } else {
       if (progressRef.current) clearInterval(progressRef.current);
     }
     return () => { if (progressRef.current) clearInterval(progressRef.current); };
-  }, [viewingDate, currentSlide, startProgress, viewingImages.length, viewMode]);
+  }, [viewingDate, currentSlide, startProgress, viewingImages.length, viewMode, isPlaying]);
 
   function handleAddImage(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -119,6 +129,7 @@ function StoryContent() {
       setViewingDate(dateKey);
       setCurrentSlide(groupByDate(updated)[dateKey].length - 1);
       setProgress(0);
+      setIsPlaying(true);
       setViewMode("grid");
     };
     reader.readAsDataURL(file);
@@ -128,6 +139,7 @@ function StoryContent() {
   function openStory(index: number) {
     setCurrentSlide(index);
     setProgress(0);
+    setIsPlaying(true);
     setViewMode("story");
   }
 
@@ -135,6 +147,7 @@ function StoryContent() {
     if (currentSlide < viewingImages.length - 1) {
       setCurrentSlide(s => s + 1);
       setProgress(0);
+      setIsPlaying(true);
     } else {
       setViewMode("grid");
     }
@@ -143,6 +156,7 @@ function StoryContent() {
     if (currentSlide > 0) {
       setCurrentSlide(s => s - 1);
       setProgress(0);
+      setIsPlaying(true);
     }
   }
 
@@ -157,9 +171,9 @@ function StoryContent() {
           </svg>
           <span className="text-[15px] font-medium">Go Back</span>
         </Link>
-        <label className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center cursor-pointer hover:bg-white/20 transition-colors">
+        <label className="w-9 h-9 flex items-center justify-center cursor-pointer text-white hover:opacity-75 transition-opacity">
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAddImage} />
-          <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
@@ -176,7 +190,7 @@ function StoryContent() {
             /* ── Story player mode ── */
             <div className="flex-1 relative flex items-center justify-center overflow-hidden">
               {/* Progress bars */}
-              <div className="absolute top-4 left-4 right-4 flex gap-1 z-20">
+              <div className="absolute top-4 left-4 right-4 flex gap-1 z-30">
                 {viewingImages.map((_, i) => (
                   <div key={i} className="h-[2px] flex-1 bg-white/20 rounded-full overflow-hidden">
                     <div
@@ -187,16 +201,57 @@ function StoryContent() {
                 ))}
               </div>
 
-              {/* Close story → go back to grid */}
-              <button
-                className="absolute top-4 right-4 z-30 w-7 h-7 rounded-full bg-black/40 flex items-center justify-center hover:bg-black/60 transition-colors"
-                onClick={() => setViewMode("grid")}
-              >
-                <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
-              </button>
+              {/* User info, Pause, and Close buttons positioned slightly below the progress bar */}
+              <div className="absolute top-8 left-4 right-4 z-30 flex items-center justify-between">
+                
+                {/* User Info */}
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    {user?.avatar ? (
+                      <img src={user.avatar} alt="User avatar" className="w-8 h-8 rounded-full object-cover shadow-sm bg-white" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center text-xs font-bold shadow-sm">
+                        {user?.name ? user.name.charAt(0).toUpperCase() : "?"}
+                      </div>
+                    )}
+                    <span className="text-[14px] font-medium text-white drop-shadow-md">
+                      {user?.name || "User"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Play / Stop and Close buttons grouped together */}
+                <div className="flex items-center gap-2">
+                  <button
+                    className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center hover:bg-black/60 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsPlaying(!isPlaying);
+                    }}
+                  >
+                    {isPlaying ? (
+                      <svg className="w-3.5 h-3.5 text-white fill-white" viewBox="0 0 24 24">
+                        <rect x="6" y="4" width="4" height="16" />
+                        <rect x="14" y="4" width="4" height="16" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4 text-white fill-white ml-1" viewBox="0 0 24 24">
+                        <polygon points="5 3 19 12 5 21 5 3" />
+                      </svg>
+                    )}
+                  </button>
+
+                  <button
+                    className="w-8 h-8 rounded-full bg-black/40 flex items-center justify-center hover:bg-black/60 transition-colors"
+                    onClick={() => setViewMode("grid")}
+                  >
+                    <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+              </div>
 
               <img
                 src={viewingImages[currentSlide]}

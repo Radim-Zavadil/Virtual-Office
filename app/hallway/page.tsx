@@ -90,8 +90,8 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "#1d1d1f", borderRadius: 20, padding: "32px 28px 24px",
-          width: 360, display: "flex", flexDirection: "column", alignItems: "center",
+          background: "#0d0d0f", border: "1px solid #373738", borderRadius: 20, padding: "40px 32px 32px",
+          width: 480, display: "flex", flexDirection: "column", alignItems: "center",
           boxShadow: "0 20px 60px rgba(0,0,0,0.7)", animation: "popIn 0.18s ease"
         }}
       >
@@ -114,7 +114,7 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
         <button onClick={handleSave} disabled={saving} style={{ width: "100%", height: 44, borderRadius: 8, border: "none", background: "#5e6ad2", color: "#fff", fontSize: 14, fontWeight: 500, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1, marginTop: 8, marginBottom: 10 }}>
           {saving ? "Saving..." : "Save changes"}
         </button>
-        <button onClick={handleLogout} style={{ width: "100%", height: 40, borderRadius: 8, border: "1px solid rgba(235,85,85,0.3)", background: "transparent", color: "#eb5555", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
+        <button onClick={handleLogout} style={{ width: "100%", height: 40, borderRadius: 8, border: "none", background: "transparent", color: "#eb5555", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
           Log out
         </button>
       </div>
@@ -180,7 +180,7 @@ function HallwayContent() {
     <div className="min-h-screen flex flex-col bg-[#0b0b0d] items-center">
       <style>{`
         @keyframes popIn { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        .corp-card { width: 453px; border-radius: 14px; background: #1d1d1f; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; padding: 20px; box-sizing: border-box; }
+        .corp-card { position: relative; overflow: hidden; width: 453px; min-height: 100px; border-radius: 14px; background: #1d1d1f; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; padding: 20px; box-sizing: border-box; }
         .corp-card:hover { border-color: rgba(255,255,255,0.08); background: #222225; }
         .add-btn { width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.15); display: flex; alignItems: center; justifyContent: center; cursor: pointer; transition: all 0.15s; }
         .add-btn:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.28); }
@@ -200,25 +200,63 @@ function HallwayContent() {
 
       <div className="flex-1 flex flex-col items-center justify-center pb-32 w-full gap-4 pt-10">
         {/* Personal Office */}
-        <div onClick={() => router.push("/")} className="corp-card">
-          <span style={{ display: "block", fontSize: 18, fontWeight: 500, color: "white", marginBottom: 6 }}>
+        <div onClick={() => router.push("/")} className="corp-card" style={{ height: "300px", display: "flex", flexDirection: "column" }}>
+          <span style={{ display: "block", fontSize: 18, fontWeight: 500, color: "white", marginBottom: 6, zIndex: 10 }}>
             {user?.name ? `${user.name}'s Office` : "My Office"}
           </span>
-          <span style={{ fontSize: 14, color: "#a1a1a6" }}>Personal workspace</span>
+          
+          {/* Corporate Circle Logo Element inside Card */}
+          <div 
+            className="pointer-events-none absolute left-1/2 -translate-x-1/2 flex items-end justify-center z-0"
+            style={{
+              bottom: "-190px",
+              width: "380px",
+              height: "380px",
+              borderRadius: "50%",
+              background: "#121214",
+              boxShadow: "0 0 15px 2px rgba(255,255,255,0.2)", // decreased shadow
+              border: "5px solid rgba(255,255,255,0.8)",       // increased stroke
+            }}
+          >
+            <div className="pb-[210px]">
+              <img src="/icons/logo.png" alt="Corporate" className="w-[140px] h-auto object-contain" />
+            </div>
+          </div>
         </div>
 
         {/* Corporates */}
         {corporates.map((corp) => (
-          <div key={corp.id} className="corp-card" onClick={() => router.push(`/?corporateId=${corp.id}`)}>
-            <span style={{ display: "block", fontSize: 18, fontWeight: 500, color: "white", marginBottom: 6 }}>{corp.name}</span>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 12, color: "#6b6b6b" }}>Created {new Date(corp.createdAt).toLocaleDateString()}</span>
-              <div style={{ display: "flex", gap: 12 }}>
-                <Link href={`/stats?corporateId=${corp.id}`} onClick={(e) => e.stopPropagation()}>
-                  <img src="/icons/folder.png" alt="Stats" style={{ width: 16, height: 16, opacity: 0.5 }} />
-                </Link>
+          <div key={corp.id} className="corp-card" style={{ height: "300px", display: "flex", flexDirection: "column" }} onClick={() => router.push(`/?corporateId=${corp.id}`)}>
+            <div style={{ zIndex: 10, flex: 1 }}>
+              <span style={{ display: "block", fontSize: 18, fontWeight: 500, color: "white", marginBottom: 6 }}>{corp.name}</span>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 12, color: "#6b6b6b" }}>Created {new Date(corp.createdAt).toLocaleDateString()}</span>
+                <div style={{ display: "flex", gap: 12 }}>
+                  <Link href={`/stats?corporateId=${corp.id}`} onClick={(e) => e.stopPropagation()}>
+                    <img src="/icons/folder.png" alt="Stats" style={{ width: 16, height: 16, opacity: 0.5 }} />
+                  </Link>
+                </div>
               </div>
             </div>
+
+            {/* Corporate Circle Logo Element inside Card */}
+            <div 
+              className="pointer-events-none absolute left-1/2 -translate-x-1/2 flex items-end justify-center z-0"
+              style={{
+                bottom: "-190px",
+                width: "380px",
+                height: "380px",
+                borderRadius: "50%",
+                background: "#121214",
+                boxShadow: "0 0 15px 2px rgba(255,255,255,0.2)",
+                border: "5px solid rgba(255,255,255,0.8)",
+              }}
+            >
+              <div className="pb-[210px]">
+                <img src="/icons/logo.png" alt="Corporate" className="w-[140px] h-auto object-contain" />
+              </div>
+            </div>
+
           </div>
         ))}
 

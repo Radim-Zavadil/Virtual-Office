@@ -45,7 +45,7 @@ export default function Calendar({ storyImages, onDayClick, selectedDate }: Cale
       {/* Total time header — dynamic based on selection */}
       <div className="mb-4 pb-4 border-b border-white/10">
         <div className="flex justify-between items-baseline mb-1">
-          <p className="text-[10px] uppercase tracking-widest text-[#555] font-semibold">
+          <p className="text-[10px] uppercase tracking-widest text-[#555] font-medium">
             {selectedDate ? format(new Date(selectedDate + "T00:00:00"), "MMM d") + " Office Time" : "Total time in office"}
           </p>
           {selectedDate && (
@@ -54,7 +54,7 @@ export default function Calendar({ storyImages, onDayClick, selectedDate }: Cale
             </p>
           )}
         </div>
-        <p className="text-[24px] font-bold text-white tracking-tight">
+        <p className="text-[24px] font-medium text-white tracking-tight">
           {selectedDate 
             ? (dailyTime[selectedDate] > 0 ? formatDuration(dailyTime[selectedDate]) : "—")
             : (totalSeconds > 0 ? formatDuration(totalSeconds) : "—")
@@ -118,10 +118,6 @@ export default function Calendar({ storyImages, onDayClick, selectedDate }: Cale
                 `}
               >
                 {format(d, "d")}
-                {/* dot indicator for data */}
-                {hasData && !isSelected && (
-                  <span className="absolute bottom-[3px] left-1/2 -translate-x-1/2 w-[3px] h-[3px] rounded-full bg-[#71a1f5] opacity-80" />
-                )}
               </button>
             </div>
           );

@@ -447,8 +447,8 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "#1d1d1f", borderRadius: 20, padding: "32px 28px 24px",
-          width: 360, display: "flex", flexDirection: "column", alignItems: "center",
+          background: "#0d0d0f", border: "1px solid #373738", borderRadius: 20, padding: "40px 32px 32px",
+          width: 480, display: "flex", flexDirection: "column", alignItems: "center",
           boxShadow: "0 20px 60px rgba(0,0,0,0.7)", animation: "popIn 0.18s ease",
         }}
       >
@@ -493,7 +493,7 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
 
         <button
           onClick={handleLogout}
-          style={{ width: "100%", height: 40, borderRadius: 8, border: "1px solid rgba(235,85,85,0.3)", background: "transparent", color: "#eb5555", fontSize: 13, fontWeight: 500, fontFamily: "inherit", cursor: "pointer" }}
+          style={{ width: "100%", height: 40, borderRadius: 8, border: "none", background: "transparent", color: "#eb5555", fontSize: 13, fontWeight: 500, fontFamily: "inherit", cursor: "pointer" }}
         >
           Log out
         </button>
@@ -522,6 +522,16 @@ function HomeContent() {
   const searchParams = useSearchParams();
   const corporateId = searchParams.get("corporateId");
   const { user } = useAuth();
+  const [corporateName, setCorporateName] = useState(user?.name || "Your");
+
+  useEffect(() => {
+    if (corporateId) {
+      fetch("/api/corporates").then((r) => r.json()).then(data => {
+        const corp = data.corporates?.find((c: any) => c.id === corporateId);
+        if (corp) setCorporateName(corp.name);
+      }).catch(() => {});
+    }
+  }, [corporateId]);
 
   // Pick the floor object based on ID, fallback to first floor
   const activeFloor = mapData.floors.find((f) => f.id === selectedFloorId) || mapData.floors[0] || null;
@@ -725,7 +735,7 @@ function HomeContent() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#0b0b0d] relative">
+    <div className="min-h-screen flex flex-col bg-[#0c0c0e] relative">
       <style>{`
         @keyframes popIn {
           from { transform: scale(0.6); opacity: 0; }
@@ -792,7 +802,6 @@ function HomeContent() {
           bottom: calc(100% + 8px);
           right: 0;
           background: #252225;
-          border: 1px solid rgba(255,255,255,0.1);
           border-radius: 10px;
           padding: 4px;
           min-width: 148px;
@@ -956,7 +965,6 @@ function HomeContent() {
                     transform: "translateX(-50%)",
                     marginTop: 8,
                     background: "#252225",
-                    border: "1px solid rgba(255,255,255,0.1)",
                     borderRadius: 10,
                     padding: 4,
                     minWidth: 120,
@@ -984,14 +992,85 @@ function HomeContent() {
 
         {/* RIGHT COLUMN — FLOORS & RECEPTION */}
         <div className="w-[380px] shrink-0 overflow-y-auto flex flex-col items-center gap-6 pt-10 px-6 pb-32">
+          
+          {/* Event Card */}
+          <div 
+            className="w-full rounded-[16px] overflow-hidden relative cursor-pointer border transition-colors"
+            style={{ height: "140px", border: "1px solid rgba(255,255,255,0.06)", background: "#101012" }}
+          >
+            <div 
+              className="absolute inset-0"
+              style={{ backgroundImage: "url(/backgrounds/event.png)", backgroundSize: "100% 100%", backgroundPosition: "center", backgroundRepeat: "no-repeat" }}
+            />
+            
+            <div className="absolute top-4 left-4 right-4 z-10 flex flex-col gap-1 pointer-events-none">
+              <h3 className="text-white font-medium text-[14px] drop-shadow-md">On-Air: Designing the Future</h3>
+              <div className="flex items-center gap-1.5 text-[#727171] mt-0.5">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                <span className="text-[11px] drop-shadow-sm">ro.am/on-air/design</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-[#727171]">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                <span className="text-[11px] drop-shadow-sm">29 Going</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Lobby Card */}
+          <div 
+            className="w-full rounded-[16px] overflow-hidden flex relative cursor-pointer transition-colors"
+            style={{ height: "140px", border: "1px solid rgba(255,255,255,0.06)", background: "#1c1c1e" }}
+          >
+            <div 
+              className="absolute inset-0"
+              style={{ backgroundImage: "url(/backgrounds/lobby.png)", backgroundSize: "100% 100%", backgroundPosition: "center", backgroundRepeat: "no-repeat" }}
+            />
+            
+            <div className="absolute inset-y-0 right-4 w-[60%] flex flex-col justify-center gap-1.5 bg-transparent z-10 pl-2">
+               <div className="flex items-center gap-1.5 mb-0.5">
+                 <span className="text-white font-medium text-[14px] drop-shadow-md">{corporateName}'s Lobby</span>
+                 <svg width="12" height="12" viewBox="0 0 24 24" fill="#facc15" className="drop-shadow-sm"><path d="M12 2l3.09 3.09L19 5.91l-.82 4.18L21 13.18l-3.09 3.09L17 20.45l-4.18-.82L9.73 22l-3.09-3.09L5 18.09l.82-4.18L3 10.82l3.09-3.09L7 3.55l4.18.82L12 2z"></path><polyline points="9 12 11 14 15 10" stroke="#1d1d1f" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"></polyline></svg>
+               </div>
+               
+               <div className="flex items-center gap-2 text-[#727171]">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                <span className="text-[11px] drop-shadow-sm">ro.am/joe</span>
+               </div>
+               
+               <div className="flex items-center gap-2 text-[#727171]">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <span className="text-[11px] drop-shadow-sm">15 mins · One-on-One</span>
+               </div>
+               
+               <div className="flex items-center gap-2 text-[#727171]">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                <span className="text-[11px] drop-shadow-sm">Drop-ins</span>
+                <span className="ml-1 px-1.5 py-0.5 rounded-[4px] bg-[rgba(74,222,128,0.15)] text-[#4ade80] text-[9.5px] font-medium flex items-center gap-1 uppercase tracking-wider border border-[rgba(74,222,128,0.2)]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#4ade80]"></span> OPEN
+                </span>
+               </div>
+            </div>
+          </div>
+
           {/* Reception Card */}
           <div
             onClick={() => handleEnter("reception")}
-            className={`w-full rounded-[16px] p-4 flex items-center justify-between group cursor-pointer border-2 transition-colors duration-200
-              ${activeRoom === "reception" ? "bg-[#1d1d1f] border-[#3a82f7]" : "bg-[#1d1d1f] border-transparent hover:bg-[#252528]"}
+            className={`w-full rounded-[16px] py-3 px-4 flex items-center justify-between group cursor-pointer border transition-colors duration-200 relative overflow-hidden
+              ${activeRoom === "reception" ? "bg-[#18181a] border-[#3a82f7]" : "bg-[#18181a] border-[rgba(255,255,255,0.06)] hover:bg-[#202022] hover:border-white/20"}
             `}
           >
-            <div className="flex items-center gap-3">
+            {/* Dotted Background with Radial Fade */}
+            <div 
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                backgroundImage: "radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px)",
+                backgroundSize: "8px 8px",
+                maskImage: "radial-gradient(ellipse at bottom, black 10%, transparent 80%)",
+                WebkitMaskImage: "radial-gradient(ellipse at bottom, black 10%, transparent 80%)"
+              }} 
+            />
+            
+            <div className="flex items-center gap-3 relative z-10">
               <span className="text-[15px] font-medium text-[#e5e5ea]">Reception</span>
               {activeRoom === "reception" && (
                 <UserAvatarRoom style={{ width: 28, height: 28, fontSize: 12 }} />
@@ -1198,7 +1277,7 @@ function HomeContent() {
         </button>
 
         <button className="nav-btn" aria-label="Enter room" onClick={() => setShowLeaveModal(true)}>
-          <img src="/icons/open_door.png" width={22} height={22} alt="Door" className="brightness-0 invert" />
+          <img src="/icons/open_door.png" style={{ width: 28, height: 34, imageRendering: "pixelated" }} alt="Door" />
         </button>
 
         <div className="flex items-center gap-1">
