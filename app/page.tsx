@@ -8,6 +8,11 @@ import AuthGuard from "./components/AuthGuard";
 
 type RoomId = string | null;
 
+type UserStatus = 
+  | { type: "online" }
+  | { type: "return_today"; reason: string; time: string }
+  | { type: "out_of_office"; reason: string; date: string };
+
 interface Office {
   id: string;
   name: string;
@@ -77,6 +82,7 @@ function OfficeCardCanvas({
   onEnter,
   onChange,
   onDelete,
+  userStatus,
 }: {
   office: Office;
   isEditMode: boolean;
@@ -84,6 +90,7 @@ function OfficeCardCanvas({
   onEnter: (id: string) => void;
   onChange: (updated: Office) => void;
   onDelete: () => void;
+  userStatus?: UserStatus;
 }) {
   const [hovered, setHovered] = useState(false);
   const [nameValue, setNameValue] = useState(office.name);
@@ -231,9 +238,10 @@ function OfficeCardCanvas({
 
         {office.type === "theater" ? (
           <div style={{ position: "absolute", top: 46, left: 14, right: 14, bottom: 20, display: "flex", flexDirection: "column", gap: 48 }}>
-            <div style={{ flex: 1, background: "#242425", borderRadius: 10, position: "relative" }}>
+             <div style={{ flex: 1, background: "#242425", borderRadius: 10, position: "relative" }}>
                  {isActive && (
                   <UserAvatarRoom
+                    userStatus={userStatus}
                     style={{
                       position: "absolute",
                       top: "50%",
@@ -252,6 +260,7 @@ function OfficeCardCanvas({
         ) : (
           isActive && (
             <UserAvatarRoom
+              userStatus={userStatus}
               style={{
                 position: "absolute",
                 left: 14,
@@ -344,10 +353,62 @@ function OfficeCardCanvas({
 }
 
 /* ── User avatar in room (reads from auth context) ── */
-function UserAvatarRoom({ style }: { style?: React.CSSProperties }) {
+function UserAvatarRoom({ style, userStatus }: { style?: React.CSSProperties; userStatus?: UserStatus }) {
   const { user } = useAuth();
   const name = user?.name || "";
   const avatar = user?.avatar || null;
+
+  if (userStatus?.type === "return_today") {
+    let hourAngle = 0;
+    let minAngle = 0;
+    if (userStatus.time) {
+       const match = userStatus.time.match(/(\d+):(\d+)\s*(AM|PM|am|pm)/);
+       if (match) {
+         let h = parseInt(match[1], 10);
+         let m = parseInt(match[2], 10);
+         if (h === 12) h = 0;
+         hourAngle = (h * 30) + (m * 0.5);
+         minAngle = m * 6;
+       }
+    }
+
+    return (
+      <div 
+        className="animate-[popIn_0.18s_ease]"
+        style={{ width: 44, height: 44, borderRadius: "50%", background: "#1a191e", border: "1.5px solid #303236", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", ...style }}
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="10" stroke="#e5e5ea" strokeWidth="2" />
+          <line x1="12" y1="12" x2="12" y2="7.5" stroke="#e5e5ea" strokeWidth="2.5" strokeLinecap="round" transform={`rotate(${hourAngle} 12 12)`} />
+          <line x1="12" y1="12" x2="12" y2="5" stroke="#e5e5ea" strokeWidth="2" strokeLinecap="round" transform={`rotate(${minAngle} 12 12)`} />
+        </svg>
+      </div>
+    );
+  }
+
+  if (userStatus?.type === "out_of_office") {
+    let dayText = "?";
+    if (userStatus.date) {
+      const parts = userStatus.date.split("-");
+      if (parts.length === 3) {
+        dayText = parseInt(parts[2], 10).toString();
+      } else {
+        const match = userStatus.date.match(/\d+/);
+        if (match) dayText = match[0];
+      }
+    }
+    return (
+      <div 
+        className="animate-[popIn_0.18s_ease]"
+        style={{ width: 44, height: 44, borderRadius: "50%", background: "#1a191e", border: "1.5px solid #303236", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", ...style }}
+      >
+        <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#e5e5ea" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+          <span style={{ position: "absolute", top: 8, fontSize: 11, color: "#e5e5ea", fontWeight: "bold" }}>{dayText}</span>
+        </div>
+      </div>
+    );
+  }
 
   if (avatar) {
     return (
@@ -506,6 +567,17 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
 function HomeContent() {
   const { activeOffice: activeRoom, startTracking, stopTracking } = useTimeTracking();
   const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [leaveFlow, setLeaveFlow] = useState<"options" | "return_today" | "out_of_office">("options");
+  const [userStatus, setUserStatus] = useState<UserStatus>({ type: "online" });
+  
+  // Return Today state
+  const [returnTodayReason, setReturnTodayReason] = useState("Out to Lunch");
+  const [returnTime, setReturnTime] = useState("");
+  
+  // Out of Office state
+  const [outOfOfficeReason, setOutOfOfficeReason] = useState("On Vacation");
+  const [returnDate, setReturnDate] = useState("");
+
   const [shelfImages, setShelfImages] = useState<string[]>([]);
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
   const [showAddRoomDropdown, setShowAddRoomDropdown] = useState(false);
@@ -595,6 +667,9 @@ function HomeContent() {
 
   function handleEnter(roomId: string) {
     if (activeRoom === roomId) return;
+    if (roomId === "reception") {
+      setUserStatus({ type: "online" });
+    }
     startTracking(roomId);
   }
 
@@ -898,6 +973,7 @@ function HomeContent() {
                   office={office}
                   isEditMode={isEditMode}
                   activeRoom={activeRoom}
+                  userStatus={userStatus}
                   onEnter={handleEnter}
                   onChange={handleUpdateOffice}
                   onDelete={() => handleDeleteOffice(office.id)}
@@ -1073,7 +1149,7 @@ function HomeContent() {
             <div className="flex items-center gap-3 relative z-10">
               <span className="text-[15px] font-medium text-[#e5e5ea]">Reception</span>
               {activeRoom === "reception" && (
-                <UserAvatarRoom style={{ width: 28, height: 28, fontSize: 12 }} />
+                <UserAvatarRoom userStatus={userStatus} style={{ width: 28, height: 28, fontSize: 12 }} />
               )}
             </div>
           </div>
@@ -1276,7 +1352,7 @@ function HomeContent() {
           <img src="/icons/plus.png" width={22} height={22} alt="Plus" className="brightness-0 invert" />
         </button>
 
-        <button className="nav-btn" aria-label="Enter room" onClick={() => setShowLeaveModal(true)}>
+        <button className="nav-btn" aria-label="Enter room" onClick={() => { setLeaveFlow("options"); setShowLeaveModal(true); }}>
           <img src="/icons/open_door.png" style={{ width: 28, height: 34, imageRendering: "pixelated" }} alt="Door" />
         </button>
 
@@ -1329,32 +1405,144 @@ function HomeContent() {
       {/* Leave Office Modal */}
       {showLeaveModal && (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 backdrop-blur-[2px] font-sans font-normal">
-          <div className="w-[420px] bg-[#1d1d1f] rounded-[24px] p-6 flex flex-col items-center shadow-2xl animate-[popIn_0.15s_ease]">
-            <div className="w-[42px] h-[42px] rounded-full bg-white/10 flex items-center justify-center mb-4 text-white">
-              <img src="/icons/open_door.png" width={24} height={24} alt="Door" className="brightness-0 invert" />
+          {leaveFlow === "options" && (
+            <div className="w-[420px] bg-[#1d1d1f] rounded-[24px] p-6 flex flex-col items-center shadow-2xl animate-[popIn_0.15s_ease]">
+              <div className="w-[42px] h-[42px] rounded-full bg-white/10 flex items-center justify-center mb-6 text-white">
+                <img src="/icons/open_door.png" width={24} height={24} alt="Door" className="brightness-0 invert" />
+              </div>
+              <div className="w-full flex flex-col gap-3">
+                <button
+                  onClick={() => setShowLeaveModal(false)}
+                  className="w-full min-h-[52px] bg-white text-[#1c1c1e] text-[16px] font-medium rounded-[12px] flex items-center justify-center transition-opacity hover:opacity-90"
+                >
+                  No, missclick!
+                </button>
+                <div className="flex flex-col gap-2 w-full mt-2">
+                  <button
+                    onClick={() => setLeaveFlow("return_today")}
+                    className="w-full min-h-[52px] bg-[#26282c] border border-[rgba(255,255,255,0.05)] text-[#e5e5ea] text-[15px] rounded-[12px] flex items-center px-5 transition-colors hover:bg-[#303236]"
+                  >
+                    <span className="flex-1 text-left">Will Return Today</span>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-40"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                  </button>
+                  <button
+                    onClick={() => setLeaveFlow("out_of_office")}
+                    className="w-full min-h-[52px] bg-[#26282c] border border-[rgba(255,255,255,0.05)] text-[#e5e5ea] text-[15px] rounded-[12px] flex items-center px-5 transition-colors hover:bg-[#303236]"
+                  >
+                    <span className="flex-1 text-left">Out of Office</span>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-40"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                  </button>
+                </div>
+                <button
+                  onClick={() => {
+                    stopTracking();
+                    setUserStatus({ type: "online" });
+                    router.push('/hallway');
+                  }}
+                  className="w-full min-h-[52px] bg-[#eb5555] text-white text-[16px] font-medium rounded-[12px] flex items-center justify-center mt-2 transition-colors hover:bg-[#d94f4f]"
+                >
+                  Yes, I need to go.
+                </button>
+              </div>
             </div>
-            <h3 className="text-[18px] text-[#e5e5ea] mb-6 text-center tracking-wide">Are you leaving office?</h3>
-            <div className="w-full flex flex-col gap-3">
-              <button
-                onClick={() => setShowLeaveModal(false)}
-                className="w-full min-h-[52px] bg-white text-[#1c1c1e] text-[16px] rounded-[12px] flex items-center justify-center transition-opacity hover:opacity-90"
-              >
-                No, missclick!
-              </button>
+          )}
+
+          {leaveFlow === "return_today" && (
+            <div className="w-[280px] bg-[#222224] border border-[#303236] rounded-[24px] p-4 flex flex-col shadow-2xl animate-[popIn_0.15s_ease]">
+              <div className="flex items-center gap-3 mb-4 cursor-pointer" onClick={() => setLeaveFlow("options")}>
+                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8e8e93" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                 <span className="text-[14px] text-[#8e8e93] font-medium">Back</span>
+              </div>
+              <div className="flex flex-col gap-1 mb-4">
+                {[
+                  { label: "Out to Lunch", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7.5L21 3l-4.5 18-13.5-13.5z"/><circle cx="11.5" cy="11.5" r="1.5"/><circle cx="15.5" cy="8.5" r="1.5"/></svg> },
+                  { label: "In-Person Meeting", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg> },
+                  { label: "Other", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> }
+                ].map(opt => (
+                  <div key={opt.label} onClick={() => setReturnTodayReason(opt.label)} className="flex items-center gap-3 p-3 rounded-[10px] cursor-pointer hover:bg-white/5 transition-colors">
+                    <div className="text-[#a0a0a5] shrink-0">{opt.icon}</div>
+                    <span className="flex-1 text-[14px] text-[#e5e5ea]">{opt.label}</span>
+                    <div className={`w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center shrink-0 ${returnTodayReason === opt.label ? "border-[#3a82f7] bg-[#3a82f7]" : "border-[#6b6b6b]"}`}>
+                       {returnTodayReason === opt.label && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="w-full bg-[#303236] rounded-[10px] p-1 flex relative mb-3 overflow-hidden" style={{ minHeight: "44px" }}>
+                 <select 
+                   value={returnTime} 
+                   onChange={(e) => setReturnTime(e.target.value)} 
+                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                 >
+                   <option value="" disabled>Choose Return Time</option>
+                   <option value="12:00 PM">12:00 PM</option>
+                   <option value="1:00 PM">1:00 PM</option>
+                   <option value="2:00 PM">2:00 PM</option>
+                   <option value="3:00 PM">3:00 PM</option>
+                   <option value="4:00 PM">4:00 PM</option>
+                   <option value="5:00 PM">5:00 PM</option>
+                 </select>
+                 <div className="flex-1 flex items-center justify-between pointer-events-none px-4 text-[#e5e5ea] text-[14px]">
+                    {returnTime || <span className="text-[#a0a0a5]">Choose Return Time</span>}
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a0a0a5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                 </div>
+              </div>
               <button
                 onClick={() => {
-                  stopTracking();
-                  router.push('/hallway');
+                  setUserStatus({ type: "return_today", reason: returnTodayReason, time: returnTime || "1:00 PM" });
+                  setShowLeaveModal(false);
                 }}
-                className="w-full min-h-[52px] bg-[#eb5555] text-white text-[16px] rounded-[12px] flex items-center justify-center transition-colors hover:bg-[#d94f4f] relative"
+                className="w-full min-h-[44px] bg-white text-[#1c1c1e] text-[14px] font-medium rounded-[14px] transition-opacity hover:opacity-90 mt-1"
+                style={{ fontFamily: "'Inter', sans-serif" }}
               >
-                Yes, I need to go.
-                <svg className="absolute right-4" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
+                Save
               </button>
             </div>
-          </div>
+          )}
+
+          {leaveFlow === "out_of_office" && (
+            <div className="w-[280px] bg-[#222224] border border-[#303236] rounded-[24px] p-4 flex flex-col shadow-2xl animate-[popIn_0.15s_ease]">
+              <div className="flex items-center gap-3 mb-4 cursor-pointer" onClick={() => setLeaveFlow("options")}>
+                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8e8e93" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                 <span className="text-[14px] text-[#8e8e93] font-medium">Back</span>
+              </div>
+              <div className="flex flex-col gap-1 mb-6">
+                {[
+                  { label: "On Vacation", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg> },
+                  { label: "Set Your Message", icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> }
+                ].map(opt => (
+                  <div key={opt.label} onClick={() => setOutOfOfficeReason(opt.label)} className="flex items-center gap-3 p-3 rounded-[10px] cursor-pointer hover:bg-white/5 transition-colors">
+                     <div className="text-[#a0a0a5] shrink-0">{opt.icon}</div>
+                     <span className="flex-1 text-[14px] text-[#e5e5ea]">{opt.label}</span>
+                     <div className={`w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center shrink-0 ${outOfOfficeReason === opt.label ? "border-[#3a82f7] bg-[#3a82f7]" : "border-[#6b6b6b]"}`}>
+                        {outOfOfficeReason === opt.label && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                     </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-col gap-1.5 mb-3">
+                 <span className="text-[12px] text-[#8e8e93] px-1 font-medium">Return Date</span>
+                 <input 
+                   type="date" 
+                   value={returnDate}
+                   onChange={(e) => setReturnDate(e.target.value)}
+                   className="w-full min-h-[44px] bg-[#303236] border-none text-[#e5e5ea] text-[14px] rounded-[10px] px-4 outline-none date-input-centered"
+                   style={{ fontFamily: 'inherit' }}
+                 />
+              </div>
+              <button
+                onClick={() => {
+                  setUserStatus({ type: "out_of_office", reason: outOfOfficeReason, date: returnDate || "01/01/2026" });
+                  setShowLeaveModal(false);
+                }}
+                className="w-full min-h-[44px] bg-white text-[#1c1c1e] text-[14px] font-medium rounded-[14px] transition-opacity hover:opacity-90 mt-1"
+                style={{ fontFamily: "'Inter', sans-serif" }}
+              >
+                Save
+              </button>
+            </div>
+          )}
+
         </div>
       )}
 
