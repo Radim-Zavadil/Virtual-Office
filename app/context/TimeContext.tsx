@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from "react";
 
 type OfficeId = string | null;
 
@@ -72,8 +72,8 @@ export function TimeProvider({ children }: { children: ReactNode }) {
     };
   }, [activeOffice]);
 
-  const startTracking = (office: OfficeId) => setActiveOffice(office);
-  const stopTracking = () => setActiveOffice(null);
+  const startTracking = useCallback((office: OfficeId) => setActiveOffice(office), []);
+  const stopTracking = useCallback(() => setActiveOffice(null), []);
 
   const totalTime = Object.values(timeSpent).reduce((acc, curr) => acc + curr, 0);
 

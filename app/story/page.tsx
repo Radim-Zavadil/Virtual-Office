@@ -56,8 +56,21 @@ function StoryContent() {
   const progressStartRef = useRef<number>(0);
   const { dailyTime } = useTimeTracking();
   const { user } = useAuth();
+  const [commentText, setCommentText] = useState("");
+  const [isGuest, setIsGuest] = useState(false);
 
   useEffect(() => {
+    setIsGuest(localStorage.getItem("virtualOffice_isGuest") === "true");
+  }, []);
+
+  // Fallback for fetchStories logic
+  const fetchStories = () => {
+    // Implement story fetching logic here if needed
+  };
+
+  useEffect(() => {
+    fetchStories();
+
     try {
       const saved = localStorage.getItem("storyImages");
       if (saved) setImages(JSON.parse(saved));
@@ -162,6 +175,16 @@ function StoryContent() {
 
   return (
     <div className="flex flex-col h-screen w-full bg-[#0b0b0d] overflow-hidden">
+      {isGuest && (
+        <div
+          className="fixed inset-0 z-[5000] bg-black/90 flex items-center justify-center p-6 text-center"
+          aria-hidden={false}
+        >
+          <h1 className="text-white text-[24px] md:text-[28px] tracking-tight" style={{ fontWeight: 500 }}>
+            Create Account to get Access to Stories
+          </h1>
+        </div>
+      )}
       {/* Header */}
       <div className="h-[64px] bg-[#111] border-b border-white/[0.07] flex items-center justify-between px-6 shrink-0 z-10">
         <Link href={backUrl} className="flex items-center gap-3 text-[#e5e5ea] hover:opacity-75 transition-opacity">
@@ -205,6 +228,7 @@ function StoryContent() {
               <div className="absolute top-8 left-4 right-4 z-30 flex items-center justify-between">
                 
                 {/* User Info */}
+
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2">
                     {user?.avatar ? (

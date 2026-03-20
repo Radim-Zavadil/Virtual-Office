@@ -70,6 +70,72 @@ function IconResize() {
   );
 }
 
+/* ── Guest Avatar ── */
+function GuestAvatar({ 
+  guest, 
+  isHost, 
+  onKick, 
+  showDropdown, 
+  onToggleDropdown,
+  style,
+}: { 
+  guest: any;
+  isHost: boolean;
+  onKick: (id: string) => void;
+  showDropdown: boolean;
+  onToggleDropdown: (id: string | null) => void;
+  style?: React.CSSProperties; 
+}) {
+  const [isHovered, setIsHovered] = useState(false);
+
+  return (
+    <div className="relative">
+      <div 
+        className="animate-[popIn_0.18s_ease] cursor-pointer transition-all"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (isHost) onToggleDropdown(showDropdown ? null : guest.id);
+        }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: "50%",
+          border: `2px solid ${showDropdown ? "#3a82f7" : "#303236"}`,
+          overflow: "hidden",
+          background: "#1a191e",
+          position: "relative",
+          ...style,
+        }}
+      >
+        <img src="/icons/guest.png" alt="Guest" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        {isHovered && isHost && (
+          <div style={{ position: "absolute", inset: 0, background: "gray", opacity: 0.5 }} />
+        )}
+      </div>
+
+      {showDropdown && (
+        <div 
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-[#252225] rounded-[10px] shadow-[0_8px_24px_rgba(0,0,0,0.5)] z-100 p-1 border border-white/5 animate-[popIn_0.12s_ease]"
+          style={{ minWidth: 100 }}
+        >
+          <div 
+            className="dropdown-item"
+            style={{ color: "#eb5555" }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onKick(guest.id);
+            }}
+          >
+            Kick
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Office card within canvas ── */
 const MIN_SIZE = 60;
 const CANVAS_WIDTH = 1200;
@@ -83,6 +149,11 @@ function OfficeCardCanvas({
   onChange,
   onDelete,
   userStatus,
+  officeGuests = [],
+  isHost = false,
+  onKickGuest,
+  activeGuestDropdownId,
+  onToggleGuestDropdown,
 }: {
   office: Office;
   isEditMode: boolean;
@@ -91,6 +162,11 @@ function OfficeCardCanvas({
   onChange: (updated: Office) => void;
   onDelete: () => void;
   userStatus?: UserStatus;
+  officeGuests?: any[];
+  isHost?: boolean;
+  onKickGuest: (id: string) => void;
+  activeGuestDropdownId: string | null;
+  onToggleGuestDropdown: (id: string | null) => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const [nameValue, setNameValue] = useState(office.name);
@@ -239,17 +315,21 @@ function OfficeCardCanvas({
         {office.type === "theater" ? (
           <div style={{ position: "absolute", top: 46, left: 14, right: 14, bottom: 20, display: "flex", flexDirection: "column", gap: 48 }}>
              <div style={{ flex: 1, background: "#242425", borderRadius: 10, position: "relative" }}>
-                 {isActive && (
-                  <UserAvatarRoom
-                    userStatus={userStatus}
-                    style={{
-                      position: "absolute",
-                      top: "50%",
-                      left: "50%",
-                      transform: "translate(-50%, -50%)"
-                    }}
-                  />
-                )}
+                 <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", display: "flex", gap: "8px", alignItems: "center" }}>
+                    {isActive && (
+                      <UserAvatarRoom userStatus={userStatus} />
+                    )}
+                    {officeGuests.map((g) => (
+                      <GuestAvatar 
+                        key={g.id} 
+                        guest={g} 
+                        isHost={isHost} 
+                        onKick={onKickGuest}
+                        showDropdown={activeGuestDropdownId === g.id}
+                        onToggleDropdown={onToggleGuestDropdown}
+                      />
+                    ))}
+                  </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gridTemplateRows: "repeat(3, 1fr)", gap: 6, height: 50 }}>
                  {Array.from({ length: 15 }).map((_, i) => (
@@ -258,16 +338,21 @@ function OfficeCardCanvas({
             </div>
           </div>
         ) : (
-          isActive && (
-            <UserAvatarRoom
-              userStatus={userStatus}
-              style={{
-                position: "absolute",
-                left: 14,
-                top: 42,
-              }}
-            />
-          )
+          <div style={{ position: "absolute", left: 14, top: 42, display: "flex", gap: "8px", alignItems: "center" }}>
+            {isActive && (
+              <UserAvatarRoom userStatus={userStatus} />
+            )}
+            {officeGuests.map((g) => (
+              <GuestAvatar 
+                key={g.id} 
+                guest={g} 
+                isHost={isHost} 
+                onKick={onKickGuest}
+                showDropdown={activeGuestDropdownId === g.id}
+                onToggleDropdown={onToggleGuestDropdown}
+              />
+            ))}
+          </div>
         )}
       </div>
 
@@ -355,6 +440,7 @@ function OfficeCardCanvas({
 /* ── User avatar in room (reads from auth context) ── */
 function UserAvatarRoom({ style, userStatus }: { style?: React.CSSProperties; userStatus?: UserStatus }) {
   const { user } = useAuth();
+  if (!user) return null;
   const name = user?.name || "";
   const avatar = user?.avatar || null;
 
@@ -455,13 +541,28 @@ function UserAvatarRoom({ style, userStatus }: { style?: React.CSSProperties; us
 }
 
 /* ── Profile Modal (inline in main page) ── */
-function ProfileModal({ onClose }: { onClose: () => void }) {
+function ProfileModal({
+  user,
+  onClose,
+  isGuest,
+  onGuestCreated,
+}: {
+  user: any;
+  onClose: () => void;
+  isGuest: boolean;
+  onGuestCreated?: () => void;
+}) {
   const router = useRouter();
-  const { user, updateProfile, logout } = useAuth();
-  const [name, setName] = useState(user?.name || "");
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatar || null);
+  const { user: authUser, updateProfile, logout, register } = useAuth(); // Renamed to avoid shadowing
+  const currentUser = user || authUser; // Use prop user if provided, else authUser
+  const [name, setName] = useState(currentUser?.name || "");
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(currentUser?.avatar || null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestPassword, setGuestPassword] = useState("");
+  const [registering, setRegistering] = useState(false);
+  const [registerError, setRegisterError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -477,7 +578,7 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
     setSaving(true);
     setError(null);
     try {
-      await updateProfile({ name: name.trim() || user?.name, avatar: avatarPreview ?? undefined });
+      await updateProfile({ name: name.trim() || currentUser?.name, avatar: avatarPreview ?? undefined });
       onClose();
     } catch {
       setError("Failed to save. Please try again.");
@@ -486,12 +587,41 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
     }
   }
 
+  async function handleGuestRegister() {
+    setRegisterError(null);
+    const email = guestEmail.trim();
+    if (!email) {
+      setRegisterError("Email is required.");
+      return;
+    }
+    if (!guestPassword || guestPassword.length < 6) {
+      setRegisterError("Password must be at least 6 characters.");
+      return;
+    }
+
+    setRegistering(true);
+    try {
+      await register(email, guestPassword);
+      // Convert guest -> full user experience.
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("virtualOffice_isGuest");
+        localStorage.removeItem("virtualOffice_guestRoom");
+      }
+      onGuestCreated?.();
+      onClose();
+    } catch (err: unknown) {
+      setRegisterError(err instanceof Error ? err.message : "Failed to create account.");
+    } finally {
+      setRegistering(false);
+    }
+  }
+
   async function handleLogout() {
     await logout();
     router.replace("/login");
   }
 
-  const displayName = name || user?.name || "";
+  const displayName = name || currentUser?.name || "";
   const initials = displayName
     ? displayName.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()
     : "?";
@@ -513,51 +643,163 @@ function ProfileModal({ onClose }: { onClose: () => void }) {
           boxShadow: "0 20px 60px rgba(0,0,0,0.7)", animation: "popIn 0.18s ease",
         }}
       >
-        <h3 style={{ color: "#e5e5ea", fontSize: 17, fontWeight: 600, marginBottom: 24, letterSpacing: "-0.01em" }}>Profile</h3>
+        {isGuest ? (
+          <>
+            <h3 style={{ color: "#e5e5ea", fontSize: 17, fontWeight: 600, marginBottom: 24, letterSpacing: "-0.01em" }}>Create Account</h3>
+            <p style={{ color: "#a0a0a5", fontSize: 13, marginBottom: 20, textAlign: "center" }}>Create an account to gain full access to the office, manage your profile, and post stories.</p>
+            <input
+              value={guestEmail}
+              onChange={(e) => setGuestEmail(e.target.value)}
+              placeholder="Email"
+              style={{ width: "100%", height: 44, borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)", background: "#28282c", color: "#e5e5ea", fontSize: 14, fontFamily: "inherit", padding: "0 14px", outline: "none", marginBottom: 8, boxSizing: "border-box" }}
+            />
+            <input
+              value={guestPassword}
+              onChange={(e) => setGuestPassword(e.target.value)}
+              type="password"
+              placeholder="Password"
+              style={{ width: "100%", height: 44, borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)", background: "#28282c", color: "#e5e5ea", fontSize: 14, fontFamily: "inherit", padding: "0 14px", outline: "none", marginBottom: 16, boxSizing: "border-box" }}
+            />
 
-        {/* Avatar */}
-        <div style={{ position: "relative", cursor: "pointer", marginBottom: 20 }} onClick={() => fileRef.current?.click()} title="Change photo">
-          {avatarPreview ? (
-            <img src={avatarPreview} alt={displayName} style={{ width: 80, height: 80, borderRadius: "50%", objectFit: "cover" }} />
-          ) : (
-            <div style={{ width: 80, height: 80, borderRadius: "50%", background: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, fontWeight: 700, color: "#1c1c1e" }}>
-              {initials}
+            {registerError && <p style={{ color: "#f87171", fontSize: 12.5, marginBottom: 10, alignSelf: "flex-start" }}>{registerError}</p>}
+
+            <button
+              onClick={handleGuestRegister}
+              disabled={registering || !guestEmail.trim() || guestPassword.length < 6}
+              style={{
+                width: "100%",
+                height: 44,
+                borderRadius: 8,
+                border: "none",
+                background: "#5e6ad2",
+                color: "#fff",
+                fontSize: 14,
+                fontWeight: 500,
+                fontFamily: "inherit",
+                cursor: registering ? "not-allowed" : "pointer",
+                transition: "opacity 0.15s",
+                opacity: registering ? 0.6 : 1,
+              }}
+            >
+              {registering ? "Creating..." : "Create Account"}
+            </button>
+          </>
+        ) : (
+          <>
+            <h3 style={{ color: "#e5e5ea", fontSize: 17, fontWeight: 600, marginBottom: 24, letterSpacing: "-0.01em" }}>Profile</h3>
+
+            {/* Avatar */}
+            <div style={{ position: "relative", cursor: "pointer", marginBottom: 20 }} onClick={() => fileRef.current?.click()} title="Change photo">
+              {avatarPreview ? (
+                <img src={avatarPreview} alt={displayName} style={{ width: 80, height: 80, borderRadius: "50%", objectFit: "cover" }} />
+              ) : (
+                <div style={{ width: 80, height: 80, borderRadius: "50%", background: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, fontWeight: 700, color: "#1c1c1e" }}>
+                  {initials}
+                </div>
+              )}
+              <div style={{ position: "absolute", bottom: 0, right: 0, width: 26, height: 26, borderRadius: "50%", background: "#3a3a3c", border: "2px solid #1d1d1f", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#e5e5ea" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                  <circle cx="12" cy="13" r="4" />
+                </svg>
+              </div>
+              <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleAvatarChange} />
             </div>
-          )}
-          <div style={{ position: "absolute", bottom: 0, right: 0, width: 26, height: 26, borderRadius: "50%", background: "#3a3a3c", border: "2px solid #1d1d1f", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#e5e5ea" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-              <circle cx="12" cy="13" r="4" />
-            </svg>
+
+            <p style={{ color: "#6b6b6b", fontSize: 12.5, marginBottom: 16 }}>{currentUser?.email}</p>
+
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Display name"
+              style={{ width: "100%", height: 44, borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)", background: "#28282c", color: "#e5e5ea", fontSize: 14, fontFamily: "inherit", padding: "0 14px", outline: "none", marginBottom: 8, boxSizing: "border-box" }}
+            />
+
+            {error && <p style={{ color: "#f87171", fontSize: 12.5, marginBottom: 8, alignSelf: "flex-start" }}>{error}</p>}
+
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              style={{ width: "100%", height: 44, borderRadius: 8, border: "none", background: "#5e6ad2", color: "#fff", fontSize: 14, fontWeight: 500, fontFamily: "inherit", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1, marginTop: 8, marginBottom: 10, transition: "opacity 0.15s" }}
+            >
+              {saving ? "Saving..." : "Save changes"}
+            </button>
+
+            <button
+              onClick={handleLogout}
+              style={{ width: "100%", height: 40, borderRadius: 8, border: "none", background: "transparent", color: "#eb5555", fontSize: 13, fontWeight: 500, fontFamily: "inherit", cursor: "pointer" }}
+            >
+              Log out
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Lobby Setup Modal ── */
+function LobbySetupModal({ onClose, onContinue, corporateName }: { onClose: () => void, onContinue: (linkId: string) => void, corporateName: string }) {
+  const [linkId, setLinkId] = useState<string | null>(null);
+
+  function handleGenerate() {
+    setLinkId(Math.random().toString(36).substring(2, 10));
+  }
+  
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 3000,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: "rgba(0,0,0,0.6)", backdropFilter: "blur(3px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#1c1c1e", border: "1px solid #373738", borderRadius: 20, 
+          width: 480, display: "flex", flexDirection: "column", overflow: "hidden",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.7)", animation: "popIn 0.18s ease",
+        }}
+      >
+        <img src="/backgrounds/invite.png" alt="Invite Background" style={{ width: "100%", height: "auto", objectFit: "contain", display: "block" }} />
+        <div style={{ padding: "32px", fontFamily: "var(--font-inter, Inter, sans-serif)", display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <h3 style={{ color: "#e5e5ea", fontSize: 16, fontWeight: 600, marginBottom: 16, textAlign: "center" }}>Lobby</h3>
+          <p style={{ color: "#a0a0a5", fontSize: 13, textAlign: "center", marginBottom: 12, lineHeight: 1.5 }}>
+            Let your guests book time with you or instantly<br />drop in to visit, if you're available.
+          </p>
+          <p style={{ color: "#a0a0a5", fontSize: 13, textAlign: "center", marginBottom: 32, lineHeight: 1.5 }}>
+            Pick your default Lobby Link on the office domain.<br />Then you can create additional sublinks and<br />configure them as you like.
+          </p>
+          
+          <div style={{ width: "100%", marginBottom: 16 }}>
+            <label style={{ display: "block", color: "#e5e5ea", fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Choose Your Lobby Link</label>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <div style={{ flex: 1, height: 44, borderRadius: 8, backgroundColor: "#28282c", border: "1px solid rgba(255,255,255,0.06)", color: linkId ? "#e5e5ea" : "#6b6b6b", fontSize: 12, display: "flex", alignItems: "center", padding: "0 14px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {linkId ? `${window.location.origin}/lobby/${linkId}` : "Click Generate"}
+              </div>
+              <button
+                onClick={handleGenerate}
+                style={{ height: 44, padding: "0 16px", borderRadius: 8, border: "1px solid #3a3a3c", background: "#28282c", color: "#e5e5ea", fontSize: 14, fontWeight: 500, cursor: "pointer", transition: "all 0.15s" }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "#3a3a3c"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "#28282c"; }}
+              >
+                Generate
+              </button>
+            </div>
           </div>
-          <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleAvatarChange} />
+          
+          <button
+            onClick={() => { if (linkId) onContinue(linkId); }}
+            disabled={!linkId}
+            style={{ width: "100%", height: 44, borderRadius: 8, border: "none", background: linkId ? "#ffffff" : "#3a3a3c", color: linkId ? "#000000" : "#a0a0a5", fontSize: 14, fontWeight: 500, cursor: linkId ? "pointer" : "not-allowed", transition: "all 0.15s" }}
+            onMouseEnter={(e) => { if (linkId) e.currentTarget.style.opacity = "0.9"; }}
+            onMouseLeave={(e) => { if (linkId) e.currentTarget.style.opacity = "1"; }}
+          >
+            Continue
+          </button>
         </div>
-
-        <p style={{ color: "#6b6b6b", fontSize: 12.5, marginBottom: 16 }}>{user?.email}</p>
-
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Display name"
-          style={{ width: "100%", height: 44, borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)", background: "#28282c", color: "#e5e5ea", fontSize: 14, fontFamily: "inherit", padding: "0 14px", outline: "none", marginBottom: 8, boxSizing: "border-box" }}
-        />
-
-        {error && <p style={{ color: "#f87171", fontSize: 12.5, marginBottom: 8, alignSelf: "flex-start" }}>{error}</p>}
-
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          style={{ width: "100%", height: 44, borderRadius: 8, border: "none", background: "#5e6ad2", color: "#fff", fontSize: 14, fontWeight: 500, fontFamily: "inherit", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.6 : 1, marginTop: 8, marginBottom: 10, transition: "opacity 0.15s" }}
-        >
-          {saving ? "Saving..." : "Save changes"}
-        </button>
-
-        <button
-          onClick={handleLogout}
-          style={{ width: "100%", height: 40, borderRadius: 8, border: "none", background: "transparent", color: "#eb5555", fontSize: 13, fontWeight: 500, fontFamily: "inherit", cursor: "pointer" }}
-        >
-          Log out
-        </button>
       </div>
     </div>
   );
@@ -582,8 +824,81 @@ function HomeContent() {
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
   const [showAddRoomDropdown, setShowAddRoomDropdown] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showLobbyModal, setShowLobbyModal] = useState(false);
+  const [lobbyActive, setLobbyActive] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [mapData, setMapData] = useState<MapData>({ floors: [] });
+  const [isGuest, setIsGuest] = useState(false);
+  const [lobbyLinkId, setLobbyLinkId] = useState<string | null>(null);
+  const [lobbyGuestsCount, setLobbyGuestsCount] = useState(0);
+  const [approvedGuests, setApprovedGuests] = useState<any[]>([]);
+  const [activeGuestDropdownId, setActiveGuestDropdownId] = useState<string | null>(null);
+  const [showCopiedBadge, setShowCopiedBadge] = useState(false);
+
+  useEffect(() => {
+    setIsGuest(localStorage.getItem("virtualOffice_isGuest") === "true");
+  }, []);
+
+  // Guest Heartbeat
+  useEffect(() => {
+    if (!isGuest) return;
+    const guestId = localStorage.getItem("virtualOffice_guestId");
+    if (!guestId) return;
+
+    const interval = setInterval(() => {
+      fetch("/api/lobby", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "heartbeat", guestId })
+      }).catch(() => {});
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [isGuest]);
+
+  useEffect(() => {
+    // Check for guest state - ONLY once on mount
+    if (typeof window === "undefined") return;
+    const guestFlag = localStorage.getItem("virtualOffice_isGuest");
+    if (guestFlag === "true") {
+      const guestRoom = localStorage.getItem("virtualOffice_guestRoom");
+      if (guestRoom && activeRoom === null) startTracking(guestRoom);
+    }
+  }, [startTracking, activeRoom]);
+
+  useEffect(() => {
+    fetch("/api/map")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.floors) setMapData(data);
+      })
+      .catch((err) => console.error(err));
+      
+    // Poll lobby state
+    const fetchLobby = () => {
+      fetch("/api/lobby")
+        .then((res) => res.json())
+        .then((data) => {
+          setLobbyActive(data.active);
+          setLobbyLinkId(data.linkId);
+          setLobbyGuestsCount(data.guests?.length || 0);
+          
+          // Ensure unique guest IDs
+          const unique: any[] = [];
+          const seen = new Set();
+          (data.approvedGuests || []).forEach((g: any) => {
+            if (!seen.has(g.id)) {
+              unique.push(g);
+              seen.add(g.id);
+            }
+          });
+          setApprovedGuests(unique);
+        })
+        .catch((err) => console.error(err));
+    };
+    fetchLobby();
+    const intervalId = setInterval(fetchLobby, 2000);
+    return () => clearInterval(intervalId);
+  }, []);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   // Track which floor is selected
@@ -638,10 +953,22 @@ function HomeContent() {
       .catch(console.error);
   }, [corporateId]);
 
+  // Load Lobby state
+  useEffect(() => {
+    fetch("/api/lobby")
+      .then((r) => r.json())
+      .then((data) => setLobbyActive(data.active))
+      .catch(console.error);
+  }, []);
+
   // Default to reception if no active room
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const guestFlag = localStorage.getItem("virtualOffice_isGuest");
+      if (guestFlag === "true") return;
+    }
     if (activeRoom === null) startTracking("reception");
-  }, []);
+  }, [activeRoom, startTracking]);
 
   // Close settings dropdown when clicked outside
   useEffect(() => {
@@ -665,12 +992,48 @@ function HomeContent() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showAddRoomDropdown]);
 
+  // Close guest dropdown when clicked outside
+  useEffect(() => {
+    function handleClickOutside() {
+      setActiveGuestDropdownId(null);
+    }
+    if (activeGuestDropdownId) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [activeGuestDropdownId]);
+
   function handleEnter(roomId: string) {
     if (activeRoom === roomId) return;
     if (roomId === "reception") {
       setUserStatus({ type: "online" });
     }
     startTracking(roomId);
+  }
+
+  function handleLobbyClick() {
+    if (lobbyActive) {
+      router.push("/lobby");
+    } else {
+      setShowLobbyModal(true);
+    }
+  }
+
+  async function handleLobbyContinue(linkId: string) {
+    try {
+      await fetch("/api/lobby", {
+        method: "POST",
+        body: JSON.stringify({ action: "activate", linkId })
+      });
+      const fullUrl = `${window.location.origin}/lobby/${linkId}`;
+      try {
+        await navigator.clipboard.writeText(fullUrl);
+      } catch (clipErr) {
+        console.warn("Clipboard copy failed:", clipErr);
+      }
+      setShowLobbyModal(false);
+      setLobbyActive(true);
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -712,6 +1075,18 @@ function HomeContent() {
     // Save map data explicitly using the current state
     await saveMapData(mapData);
     setIsEditMode(false);
+  }
+
+  async function handleKickGuest(guestId: string) {
+    try {
+      await fetch("/api/lobby", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "kick_guest", guestId })
+      });
+      setApprovedGuests(prev => prev.filter(g => g.id !== guestId));
+      setActiveGuestDropdownId(null);
+    } catch (e) { console.error(e); }
   }
 
   // ── Floor CRUD ──
@@ -974,6 +1349,11 @@ function HomeContent() {
                   isEditMode={isEditMode}
                   activeRoom={activeRoom}
                   userStatus={userStatus}
+                  officeGuests={approvedGuests.filter(g => g.roomId === office.id)}
+                  isHost={!isGuest}
+                  onKickGuest={handleKickGuest}
+                  activeGuestDropdownId={activeGuestDropdownId}
+                  onToggleGuestDropdown={setActiveGuestDropdownId}
                   onEnter={handleEnter}
                   onChange={handleUpdateOffice}
                   onDelete={() => handleDeleteOffice(office.id)}
@@ -990,7 +1370,7 @@ function HomeContent() {
         </div>
 
         {/* Vertical Divider with Add Room button */}
-        <div className="w-[1px] bg-white/[0.12] self-stretch relative">
+        <div className="w-px bg-white/12 self-stretch relative">
           {isEditMode && (
             <div
               ref={addRoomRef}
@@ -1083,7 +1463,7 @@ function HomeContent() {
               <h3 className="text-white font-medium text-[14px] drop-shadow-md">On-Air: Designing the Future</h3>
               <div className="flex items-center gap-1.5 text-[#727171] mt-0.5">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                <span className="text-[11px] drop-shadow-sm">ro.am/on-air/design</span>
+                <span className="text-[11px] drop-shadow-sm">office/on-air/design</span>
               </div>
               <div className="flex items-center gap-1.5 text-[#727171]">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
@@ -1094,6 +1474,7 @@ function HomeContent() {
 
           {/* Lobby Card */}
           <div 
+            onClick={handleLobbyClick}
             className="w-full rounded-[16px] overflow-hidden flex relative cursor-pointer transition-colors"
             style={{ height: "140px", border: "1px solid rgba(255,255,255,0.06)", background: "#1c1c1e" }}
           >
@@ -1108,22 +1489,75 @@ function HomeContent() {
                  <svg width="12" height="12" viewBox="0 0 24 24" fill="#facc15" className="drop-shadow-sm"><path d="M12 2l3.09 3.09L19 5.91l-.82 4.18L21 13.18l-3.09 3.09L17 20.45l-4.18-.82L9.73 22l-3.09-3.09L5 18.09l.82-4.18L3 10.82l3.09-3.09L7 3.55l4.18.82L12 2z"></path><polyline points="9 12 11 14 15 10" stroke="#1d1d1f" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"></polyline></svg>
                </div>
                
-               <div className="flex items-center gap-2 text-[#727171]">
+               <div 
+                 className="flex items-center gap-2 text-[#727171] cursor-pointer hover:text-[#4a4a4a] transition-colors group relative"
+                 onClick={(e) => {
+                   e.stopPropagation();
+                   if (lobbyActive && lobbyLinkId) {
+                     const fullUrl = `${window.location.origin}/lobby/${lobbyLinkId}`;
+                     const copyText = (text: string) => {
+                       if (navigator.clipboard && window.isSecureContext) {
+                         navigator.clipboard.writeText(text).then(() => {
+                           setShowCopiedBadge(true);
+                           setTimeout(() => setShowCopiedBadge(false), 2000);
+                         }).catch(() => fallbackCopy(text));
+                       } else {
+                         fallbackCopy(text);
+                       }
+                     };
+                     const fallbackCopy = (text: string) => {
+                        const textArea = document.createElement("textarea");
+                        textArea.value = text;
+                        textArea.style.position = "fixed";
+                        textArea.style.left = "-9999px";
+                        textArea.style.top = "0";
+                        document.body.appendChild(textArea);
+                        textArea.focus();
+                        textArea.select();
+                        try {
+                          document.execCommand('copy');
+                          setShowCopiedBadge(true);
+                          setTimeout(() => setShowCopiedBadge(false), 2000);
+                        } catch (err) {
+                          console.error('Fallback: Oops, unable to copy', err);
+                        }
+                        document.body.removeChild(textArea);
+                     };
+                     copyText(fullUrl);
+                   }
+                 }}
+               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                <span className="text-[11px] drop-shadow-sm">ro.am/joe</span>
+                <span className="text-[11px] drop-shadow-sm">{lobbyActive && lobbyLinkId ? `office/lobby/${lobbyLinkId}` : "office/..."}</span>
+                {showCopiedBadge && (
+                  <span 
+                    className="absolute -top-7 left-1/2 -translate-x-1/2 text-white text-[10px] px-2 py-0.5 rounded-[4px] animate-[popIn_0.15s_ease]"
+                    style={{ backgroundColor: "rgba(128, 128, 128, 0.5)", backdropFilter: "blur(4px)" }}
+                  >
+                    Copied!
+                  </span>
+                )}
                </div>
                
-               <div className="flex items-center gap-2 text-[#727171]">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                <span className="text-[11px] drop-shadow-sm">15 mins · One-on-One</span>
-               </div>
+               {lobbyActive && (
+                 <div className="flex items-center gap-2 text-[#727171]">
+                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                   <span className="text-[11px] drop-shadow-sm">{lobbyGuestsCount} Guest{lobbyGuestsCount !== 1 && 's'} Waiting</span>
+                 </div>
+               )}
                
                <div className="flex items-center gap-2 text-[#727171]">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                 <span className="text-[11px] drop-shadow-sm">Drop-ins</span>
-                <span className="ml-1 px-1.5 py-0.5 rounded-[4px] bg-[rgba(74,222,128,0.15)] text-[#4ade80] text-[9.5px] font-medium flex items-center gap-1 uppercase tracking-wider border border-[rgba(74,222,128,0.2)]">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#4ade80]"></span> OPEN
-                </span>
+                {lobbyActive ? (
+                  <span className="ml-1 px-1.5 py-0.5 rounded-[4px] bg-[rgba(74,222,128,0.15)] text-[#4ade80] text-[9.5px] font-medium flex items-center gap-1 uppercase tracking-wider border border-[rgba(74,222,128,0.2)]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#4ade80]"></span> OPEN
+                  </span>
+                ) : (
+                  <span className="ml-1 px-1.5 py-0.5 rounded-[4px] bg-[rgba(235,85,85,0.15)] text-[#eb5555] text-[9.5px] font-medium flex items-center gap-1 uppercase tracking-wider border border-[rgba(235,85,85,0.2)]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#eb5555]"></span> CLOSED
+                  </span>
+                )}
                </div>
             </div>
           </div>
@@ -1148,9 +1582,22 @@ function HomeContent() {
             
             <div className="flex items-center gap-3 relative z-10">
               <span className="text-[15px] font-medium text-[#e5e5ea]">Reception</span>
-              {activeRoom === "reception" && (
-                <UserAvatarRoom userStatus={userStatus} style={{ width: 28, height: 28, fontSize: 12 }} />
-              )}
+              <div className="flex items-center gap-2">
+                {activeRoom === "reception" && (
+                  <UserAvatarRoom userStatus={userStatus} style={{ width: 28, height: 28, fontSize: 12 }} />
+                )}
+                {approvedGuests.filter(g => g.roomId === "reception").map(g => (
+                  <GuestAvatar 
+                    key={g.id} 
+                    guest={g} 
+                    isHost={!isGuest} 
+                    onKick={handleKickGuest}
+                    showDropdown={activeGuestDropdownId === g.id}
+                    onToggleDropdown={setActiveGuestDropdownId}
+                    style={{ width: 28, height: 28 }} 
+                  />
+                ))}
+              </div>
             </div>
           </div>
 
@@ -1376,15 +1823,17 @@ function HomeContent() {
                 </button>
                 {showSettingsDropdown && (
                   <div className="settings-dropdown">
-                    <div
-                      className="dropdown-item"
-                      onClick={() => {
-                        setShowSettingsDropdown(false);
-                        setIsEditMode(true);
-                      }}
-                    >
-                      Edit Map
-                    </div>
+                    {!isGuest && (
+                      <div
+                        className="dropdown-item"
+                        onClick={() => {
+                          setShowSettingsDropdown(false);
+                          setIsEditMode(true);
+                        }}
+                      >
+                        Edit Map
+                      </div>
+                    )}
                     <div
                       className="dropdown-item"
                       onClick={() => {
@@ -1547,7 +1996,23 @@ function HomeContent() {
       )}
 
       {/* Profile modal */}
-      {showProfileModal && <ProfileModal onClose={() => setShowProfileModal(false)} />}
+      {showProfileModal && (
+        <ProfileModal
+          user={user}
+          isGuest={isGuest}
+          onClose={() => setShowProfileModal(false)}
+          onGuestCreated={() => setIsGuest(false)}
+        />
+      )}
+      
+      {/* Lobby modal */}
+      {showLobbyModal && (
+        <LobbySetupModal 
+          onClose={() => setShowLobbyModal(false)} 
+          onContinue={handleLobbyContinue} 
+          corporateName={corporateName} 
+        />
+      )}
     </div>
   );
 }
