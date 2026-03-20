@@ -19,6 +19,11 @@ export async function GET() {
       data.approvedGuests = data.approvedGuests.filter((g: any) => g.lastSeen && (now - g.lastSeen) < staleThreshold);
     }
     
+    // Clear hostRoom if stale
+    if (data.hostLastSeen && (now - data.hostLastSeen) > staleThreshold) {
+      data.hostRoom = null;
+    }
+    
     return NextResponse.json(data);
   } catch (error) {
     return NextResponse.json({ active: false, linkId: null, guests: [], approvedGuests: [] }, { status: 500 });
@@ -54,8 +59,15 @@ export async function POST(request: Request) {
         newData.guests.push(guest);
       }
     } else if (body.action === 'remove_guest') {
-      const guest = newData.guests.find((g: any) => g.id === body.guestId);
-      newData.guests = newData.guests.filter((g: any) => g.id !== body.guestId);
+      // Find guest in either waiting list OR approved list (to handle transfers)
+      let guest = newData.guests?.find((g: any) => g.id === body.guestId);
+      if (!guest) {
+        guest = newData.approvedGuests?.find((g: any) => g.id === body.guestId);
+      }
+      
+      // Remove from both to be safe (idempotency)
+      newData.guests = newData.guests?.filter((g: any) => g.id !== body.guestId) || [];
+      newData.approvedGuests = newData.approvedGuests?.filter((g: any) => g.id !== body.guestId) || [];
       
       if (body.roomId && guest) {
         guest.roomId = body.roomId;
@@ -74,6 +86,10 @@ export async function POST(request: Request) {
       
       const approved = newData.approvedGuests?.find((g: any) => g.id === gId);
       if (approved) approved.lastSeen = now;
+    } else if (body.action === 'host_heartbeat') {
+      const now = Date.now();
+      newData.hostRoom = body.hostRoom;
+      newData.hostLastSeen = now;
     } else if (body.action === 'kick_guest') {
       const gId = body.guestId;
       newData.guests = newData.guests?.filter((g: any) => g.id !== gId) || [];

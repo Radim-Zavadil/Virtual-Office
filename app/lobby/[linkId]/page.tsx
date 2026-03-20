@@ -124,7 +124,7 @@ export default function GuestInvitePage() {
       className="min-h-screen relative flex items-center justify-center font-sans bg-black overflow-hidden"
       style={{
         backgroundImage: "url(/backgrounds/invite.png)",
-        backgroundSize: "cover",
+        backgroundSize: "100% 100%",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat"
       }}

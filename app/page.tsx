@@ -117,12 +117,11 @@ function GuestAvatar({
 
       {showDropdown && (
         <div 
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-[#252225] rounded-[10px] shadow-[0_8px_24px_rgba(0,0,0,0.5)] z-100 p-1 border border-white/5 animate-[popIn_0.12s_ease]"
+          className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-[#252225] rounded-[10px] shadow-[0_8px_24px_rgba(0,0,0,0.5)] z-100 p-1 border border-white/5 animate-[popIn_0.12s_ease]"
           style={{ minWidth: 100 }}
         >
           <div 
-            className="dropdown-item"
-            style={{ color: "#eb5555" }}
+            className="px-3 py-2 text-[13px] text-white hover:bg-white/5 rounded-[6px] transition-colors cursor-pointer"
             onClick={(e) => {
               e.stopPropagation();
               onKick(guest.id);
@@ -154,6 +153,8 @@ function OfficeCardCanvas({
   onKickGuest,
   activeGuestDropdownId,
   onToggleGuestDropdown,
+  isGuest,
+  hostRoom,
 }: {
   office: Office;
   isEditMode: boolean;
@@ -167,6 +168,8 @@ function OfficeCardCanvas({
   onKickGuest: (id: string) => void;
   activeGuestDropdownId: string | null;
   onToggleGuestDropdown: (id: string | null) => void;
+  isGuest?: boolean;
+  hostRoom?: string | null;
 }) {
   const [hovered, setHovered] = useState(false);
   const [nameValue, setNameValue] = useState(office.name);
@@ -259,7 +262,6 @@ function OfficeCardCanvas({
           borderRadius: 14,
           border: `2px solid ${isActive ? "#3a82f7" : (hovered && isEditMode ? "transparent" : "transparent")}`,
           transition: "border-color 0.15s, background-color 0.15s",
-          overflow: "hidden",
         }}
       >
         {/* Name input (visible on hover in edit mode) */}
@@ -316,7 +318,7 @@ function OfficeCardCanvas({
           <div style={{ position: "absolute", top: 46, left: 14, right: 14, bottom: 20, display: "flex", flexDirection: "column", gap: 48 }}>
              <div style={{ flex: 1, background: "#242425", borderRadius: 10, position: "relative" }}>
                  <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", display: "flex", gap: "8px", alignItems: "center" }}>
-                    {isActive && (
+                    {(isActive || (isGuest && hostRoom === office.id)) && (
                       <UserAvatarRoom userStatus={userStatus} />
                     )}
                     {officeGuests.map((g) => (
@@ -339,7 +341,7 @@ function OfficeCardCanvas({
           </div>
         ) : (
           <div style={{ position: "absolute", left: 14, top: 42, display: "flex", gap: "8px", alignItems: "center" }}>
-            {isActive && (
+            {(isActive || (isGuest && hostRoom === office.id)) && (
               <UserAvatarRoom userStatus={userStatus} />
             )}
             {officeGuests.map((g) => (
@@ -834,10 +836,7 @@ function HomeContent() {
   const [approvedGuests, setApprovedGuests] = useState<any[]>([]);
   const [activeGuestDropdownId, setActiveGuestDropdownId] = useState<string | null>(null);
   const [showCopiedBadge, setShowCopiedBadge] = useState(false);
-
-  useEffect(() => {
-    setIsGuest(localStorage.getItem("virtualOffice_isGuest") === "true");
-  }, []);
+  const [hostRoom, setHostRoom] = useState<string | null>(null);
 
   // Guest Heartbeat
   useEffect(() => {
@@ -881,6 +880,7 @@ function HomeContent() {
           setLobbyActive(data.active);
           setLobbyLinkId(data.linkId);
           setLobbyGuestsCount(data.guests?.length || 0);
+          setHostRoom(data.hostRoom);
           
           // Ensure unique guest IDs
           const unique: any[] = [];
@@ -892,13 +892,35 @@ function HomeContent() {
             }
           });
           setApprovedGuests(unique);
+
+          // Handle Guest Sync and Kick Exit
+          if (isGuest) {
+            const guestId = localStorage.getItem("virtualOffice_guestId");
+            const gInApproved = unique.find(g => g.id === guestId);
+            const gInWaiting = (data.guests || []).find((g: any) => g.id === guestId);
+
+            if (!gInApproved && !gInWaiting && data.active) {
+              // Guest was kicked or lobby closed
+              localStorage.removeItem("virtualOffice_isGuest");
+              localStorage.removeItem("virtualOffice_guestRoom");
+              localStorage.removeItem("virtualOffice_guestId");
+              window.location.href = "/404-kicked"; // Redirect out to a 404-like error
+              return;
+            }
+
+            if (gInApproved && gInApproved.roomId !== activeRoom) {
+              // Teleport guest to new room assigned by host
+              localStorage.setItem("virtualOffice_guestRoom", gInApproved.roomId);
+              startTracking(gInApproved.roomId);
+            }
+          }
         })
         .catch((err) => console.error(err));
     };
     fetchLobby();
     const intervalId = setInterval(fetchLobby, 2000);
     return () => clearInterval(intervalId);
-  }, []);
+  }, [isGuest, activeRoom, startTracking]);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   // Track which floor is selected
@@ -910,6 +932,32 @@ function HomeContent() {
   const corporateId = searchParams.get("corporateId");
   const { user } = useAuth();
   const [corporateName, setCorporateName] = useState(user?.name || "Your");
+
+  useEffect(() => {
+    // If a real user is logged in, they are NOT a guest.
+    if (user) {
+      setIsGuest(false);
+      localStorage.removeItem("virtualOffice_isGuest");
+      localStorage.removeItem("virtualOffice_guestRoom");
+      localStorage.removeItem("virtualOffice_guestId");
+      return;
+    }
+    setIsGuest(localStorage.getItem("virtualOffice_isGuest") === "true");
+  }, [user, setIsGuest]);
+
+  // Host Heartbeat (Broadcast real position to guests)
+  useEffect(() => {
+    if (isGuest || !user) return;
+    
+    const interval = setInterval(() => {
+      fetch("/api/lobby", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "host_heartbeat", hostRoom: activeRoom })
+      }).catch(() => {});
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [isGuest, user, activeRoom]);
 
   useEffect(() => {
     if (corporateId) {
@@ -1357,6 +1405,8 @@ function HomeContent() {
                   onEnter={handleEnter}
                   onChange={handleUpdateOffice}
                   onDelete={() => handleDeleteOffice(office.id)}
+                  isGuest={isGuest}
+                  hostRoom={hostRoom}
                 />
               ))
             ) : (
@@ -1583,7 +1633,7 @@ function HomeContent() {
             <div className="flex items-center gap-3 relative z-10">
               <span className="text-[15px] font-medium text-[#e5e5ea]">Reception</span>
               <div className="flex items-center gap-2">
-                {activeRoom === "reception" && (
+                {(activeRoom === "reception" || (isGuest && hostRoom === "reception")) && (
                   <UserAvatarRoom userStatus={userStatus} style={{ width: 28, height: 28, fontSize: 12 }} />
                 )}
                 {approvedGuests.filter(g => g.roomId === "reception").map(g => (

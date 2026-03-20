@@ -1,13 +1,8 @@
 {
-  "active": true,
-  "linkId": "gonagtfj",
+  "active": false,
+  "linkId": null,
   "guests": [],
-  "approvedGuests": [
-    {
-      "id": "g-1774034229186",
-      "name": "Guest 1",
-      "lastSeen": 1774034881258,
-      "roomId": "office-1773601269228"
-    }
-  ]
+  "approvedGuests": [],
+  "hostRoom": "reception",
+  "hostLastSeen": 1774036958105
 }
