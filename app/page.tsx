@@ -807,6 +807,93 @@ function LobbySetupModal({ onClose, onContinue, corporateName }: { onClose: () =
   );
 }
 
+/* ── Event Setup Modal ── */
+function EventSetupModal({ 
+  onClose, 
+  title, 
+  setTitle, 
+  eventDate, 
+  setEventDate 
+}: { 
+  onClose: () => void; 
+  title: string; 
+  setTitle: (val: string) => void; 
+  eventDate: string; 
+  setEventDate: (val: string) => void; 
+}) {
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await fetch("/api/event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, date: eventDate })
+      });
+      onClose();
+    } catch (e) {
+      console.error(e);
+      setSaving(false);
+    }
+  }
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 3000,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: "rgba(0,0,0,0.6)", backdropFilter: "blur(3px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#1c1c1e", border: "1px solid #373738", borderRadius: 20, 
+          width: 480, display: "flex", flexDirection: "column", overflow: "hidden",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.7)", animation: "popIn 0.18s ease",
+        }}
+      >
+        <img src="/backgrounds/event.png" alt="Event Background" style={{ width: "100%", height: "140px", objectFit: "cover", display: "block" }} />
+        <div style={{ padding: "32px", fontFamily: "var(--font-inter, Inter, sans-serif)", display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <h3 style={{ color: "#e5e5ea", fontSize: 16, fontWeight: 600, marginBottom: 24, textAlign: "center" }}>Event Settings</h3>
+          
+          <div style={{ width: "100%", marginBottom: 16 }}>
+            <label style={{ display: "block", color: "#e5e5ea", fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Event Title</label>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. On-Air: Designing the Future"
+              style={{ width: "100%", height: 44, borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)", background: "#28282c", color: "#e5e5ea", fontSize: 14, padding: "0 14px", outline: "none", boxSizing: "border-box" }}
+            />
+          </div>
+          
+          <div style={{ width: "100%", marginBottom: 32 }}>
+            <label style={{ display: "block", color: "#e5e5ea", fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Event Date</label>
+            <input
+              type="date"
+              value={eventDate}
+              onChange={(e) => setEventDate(e.target.value)}
+              className="date-input-centered"
+              style={{ width: "100%", height: 44, borderRadius: 8, border: "1px solid rgba(255,255,255,0.12)", background: "#28282c", color: "#e5e5ea", fontSize: 14, padding: "0 14px", outline: "none", boxSizing: "border-box", fontFamily: "inherit", colorScheme: "dark" }}
+            />
+          </div>
+          
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{ width: "100%", height: 44, borderRadius: 8, border: "none", background: "#ffffff", color: "#000000", fontSize: 14, fontWeight: 500, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1, transition: "all 0.15s" }}
+            onMouseEnter={(e) => { if (!saving) e.currentTarget.style.opacity = "0.9"; }}
+            onMouseLeave={(e) => { if (!saving) e.currentTarget.style.opacity = "1"; }}
+          >
+            {saving ? "Saving..." : "Save & Close"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main page ── */
 function HomeContent() {
   const { activeOffice: activeRoom, startTracking, stopTracking } = useTimeTracking();
@@ -827,7 +914,20 @@ function HomeContent() {
   const [showAddRoomDropdown, setShowAddRoomDropdown] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showLobbyModal, setShowLobbyModal] = useState(false);
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [eventTitle, setEventTitle] = useState("On-Air: Designing the Future");
+  const [eventDate, setEventDate] = useState("");
   const [lobbyActive, setLobbyActive] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/event")
+      .then(res => res.json())
+      .then(data => {
+        if (data?.title) setEventTitle(data.title);
+        if (data?.date !== undefined) setEventDate(data.date);
+      })
+      .catch(console.error);
+  }, []);
   const [isEditMode, setIsEditMode] = useState(false);
   const [mapData, setMapData] = useState<MapData>({ floors: [] });
   const [isGuest, setIsGuest] = useState(false);
@@ -1501,6 +1601,7 @@ function HomeContent() {
           
           {/* Event Card */}
           <div 
+            onClick={() => setShowEventModal(true)}
             className="w-full rounded-[16px] overflow-hidden relative cursor-pointer border transition-colors"
             style={{ height: "140px", border: "1px solid rgba(255,255,255,0.06)", background: "#101012" }}
           >
@@ -1510,15 +1611,27 @@ function HomeContent() {
             />
             
             <div className="absolute top-4 left-4 right-4 z-10 flex flex-col gap-1 pointer-events-none">
-              <h3 className="text-white font-medium text-[14px] drop-shadow-md">On-Air: Designing the Future</h3>
+              <h3 className="text-white font-medium text-[14px] drop-shadow-md">{eventTitle}</h3>
               <div className="flex items-center gap-1.5 text-[#727171] mt-0.5">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                <span className="text-[11px] drop-shadow-sm">office/on-air/design</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                <span className="text-[11px] drop-shadow-sm">{eventDate ? new Date(eventDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "Set event date..."}</span>
               </div>
-              <div className="flex items-center gap-1.5 text-[#727171]">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                <span className="text-[11px] drop-shadow-sm">29 Going</span>
-              </div>
+              {eventDate && (
+                <div className="flex items-center gap-1.5 text-[#727171] mt-0.5">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                  <span className="text-[11px] drop-shadow-sm font-medium">
+                    {(() => {
+                      const tgt = new Date(eventDate);
+                      tgt.setHours(23, 59, 59, 999);
+                      const diffDays = Math.ceil((tgt.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                      if (diffDays < 0) return "Passed";
+                      if (diffDays === 0) return "Today";
+                      if (diffDays === 1) return "Tomorrow";
+                      return `${diffDays} Days Left`;
+                    })()}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -2061,6 +2174,17 @@ function HomeContent() {
           onClose={() => setShowLobbyModal(false)} 
           onContinue={handleLobbyContinue} 
           corporateName={corporateName} 
+        />
+      )}
+
+      {/* Event modal */}
+      {showEventModal && (
+        <EventSetupModal
+          onClose={() => setShowEventModal(false)}
+          title={eventTitle}
+          setTitle={setEventTitle}
+          eventDate={eventDate}
+          setEventDate={setEventDate}
         />
       )}
     </div>
