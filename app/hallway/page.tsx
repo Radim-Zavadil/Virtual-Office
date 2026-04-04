@@ -180,7 +180,7 @@ function HallwayContent() {
     <div className="min-h-screen flex flex-col bg-[#0b0b0d] items-center">
       <style>{`
         @keyframes popIn { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        .corp-card { position: relative; overflow: hidden; width: 453px; min-height: 100px; border-radius: 14px; background: #1d1d1f; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; padding: 20px; box-sizing: border-box; }
+        .corp-card { position: relative; overflow: hidden; width: 100%; max-width: 453px; min-height: 100px; border-radius: 14px; background: #1d1d1f; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; padding: 20px; box-sizing: border-box; }
         .corp-card:hover { border-color: rgba(255,255,255,0.08); background: #222225; }
         .add-btn { width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.15); display: flex; alignItems: center; justifyContent: center; cursor: pointer; transition: all 0.15s; }
         .add-btn:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.28); }
@@ -198,7 +198,7 @@ function HallwayContent() {
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col items-center justify-center pb-32 w-full gap-4 pt-10">
+      <div className="flex-1 flex flex-col items-center justify-center pb-32 w-full gap-4 pt-10 px-4">
         {/* Personal Office */}
         <div onClick={() => router.push("/")} className="corp-card" style={{ height: "300px", display: "flex", flexDirection: "column" }}>
           <span style={{ display: "block", fontSize: 18, fontWeight: 500, color: "white", marginBottom: 6, zIndex: 10 }}>

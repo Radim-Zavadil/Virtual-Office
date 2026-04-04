@@ -894,6 +894,87 @@ function EventSetupModal({
   );
 }
 
+/* ── Floors Modal ── */
+function FloorsModal({
+  onClose,
+  mapData,
+  activeRoom,
+  onEnter,
+  approvedGuests,
+  isGuest,
+  hostRoom,
+  userStatus
+}: {
+  onClose: () => void;
+  mapData: MapData;
+  activeRoom: string | null;
+  onEnter: (id: string) => void;
+  approvedGuests: any[];
+  isGuest: boolean;
+  hostRoom: string | null;
+  userStatus: UserStatus;
+}) {
+  return (
+    <div className="fixed inset-0 z-[4000] bg-[#0b0b0d] flex flex-col overflow-y-auto animate-[popIn_0.15s_ease]">
+      <div className="flex items-center justify-between px-6 py-5 shrink-0">
+        <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+        <h2 className="text-white text-[18px] font-semibold">Rooms & Floors</h2>
+        <div className="w-10 h-10"></div>
+      </div>
+      
+      <div className="flex-1 px-4 pb-32 flex flex-col gap-8">
+        
+        {/* Reception Section */}
+        <section>
+          <h3 className="text-[#8e8e93] text-[13px] uppercase tracking-wider font-semibold mb-3 ml-2">Reception</h3>
+          <div 
+            onClick={() => { onEnter("reception"); onClose(); }}
+            className={`w-full rounded-[16px] p-4 flex flex-col gap-4 cursor-pointer border transition-colors ${activeRoom === "reception" ? "bg-[#18181a] border-[#3a82f7]" : "bg-[#1c1c1e] border-white/5 hover:border-white/10"}`}
+          >
+            <span className="text-white font-medium text-[16px]">Main Reception</span>
+            <div className="flex flex-wrap gap-2">
+              {(activeRoom === "reception" || (isGuest && hostRoom === "reception")) && (
+                <UserAvatarRoom userStatus={userStatus} style={{ width: 44, height: 44 }} />
+              )}
+              {approvedGuests.filter(g => g.roomId === "reception").map(g => (
+                <GuestAvatar key={g.id} guest={g} isHost={!isGuest} onKick={() => {}} showDropdown={false} onToggleDropdown={() => {}} style={{ width: 44, height: 44 }} />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Floors and Offices */}
+        {mapData.floors.map(floor => (
+          <section key={floor.id}>
+            <h3 className="text-[#8e8e93] text-[13px] uppercase tracking-wider font-semibold mb-3 ml-2">{floor.name}</h3>
+            <div className="grid grid-cols-2 gap-3">
+              {floor.offices.map(office => (
+                <div 
+                  key={office.id}
+                  onClick={() => { onEnter(office.id); onClose(); }}
+                  className={`rounded-[16px] p-4 flex flex-col min-h-[140px] cursor-pointer border transition-colors ${activeRoom === office.id ? "bg-[#18181a] border-[#3a82f7]" : "bg-[#1c1c1e] border-white/5 hover:border-white/10"}`}
+                >
+                   <span className="text-white font-medium text-[15px] mb-4 truncate">{office.name || "Office"}</span>
+                   <div className="flex flex-wrap gap-[-8px] mt-auto">
+                      {(activeRoom === office.id || (isGuest && hostRoom === office.id)) && (
+                        <div className="-ml-1 inline-block"><UserAvatarRoom userStatus={userStatus} style={{ width: 36, height: 36, border: "2px solid #1c1c1e" }} /></div>
+                      )}
+                      {approvedGuests.filter(g => g.roomId === office.id).map(g => (
+                        <div key={g.id} className="-ml-1 inline-block"><GuestAvatar guest={g} isHost={!isGuest} onKick={() => {}} showDropdown={false} onToggleDropdown={() => {}} style={{ width: 36, height: 36, border: "2px solid #1c1c1e" }} /></div>
+                      ))}
+                   </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ── Main page ── */
 function HomeContent() {
   const { activeOffice: activeRoom, startTracking, stopTracking } = useTimeTracking();
@@ -915,6 +996,8 @@ function HomeContent() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showLobbyModal, setShowLobbyModal] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
+  const [showFloorsModal, setShowFloorsModal] = useState(false);
+  const [scrollX, setScrollX] = useState(0);
   const [eventTitle, setEventTitle] = useState("On-Air: Designing the Future");
   const [eventDate, setEventDate] = useState("");
   const [lobbyActive, setLobbyActive] = useState(false);
@@ -1479,7 +1562,18 @@ function HomeContent() {
       <main className="flex-1 flex overflow-hidden relative">
 
         {/* LEFT COLUMN — OFFICES CANVAS */}
-        <div className="flex-1 overflow-y-auto flex flex-col items-center pt-8 pb-32">
+        <div 
+          className="flex-1 overflow-y-auto overflow-x-auto flex flex-col items-start md:items-center pt-8 pb-32"
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            const maxScroll = el.scrollWidth - el.clientWidth;
+            if (maxScroll > 0) {
+              setScrollX(el.scrollLeft / maxScroll);
+            } else {
+              setScrollX(0);
+            }
+          }}
+        >
           <div
             className="relative rounded-[16px] w-[1200px] border-none"
             style={{
@@ -1938,6 +2032,25 @@ function HomeContent() {
         </div>
       </div>
 
+      {/* Dynamic Minimap Overlay */}
+      <div 
+        className="fixed bottom-[88px] left-1/2 -translate-x-1/2 z-50 pointer-events-none md:hidden backdrop-blur-md"
+        style={{ width: "120px", height: "40px", background: "rgba(0,0,0,0.4)", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden" }}
+      >
+        <div 
+          style={{
+            position: "absolute",
+            top: 2, bottom: 2,
+            left: 2 + scrollX * (120 - 32 - 4),
+            width: "32px",
+            background: "rgba(255,255,255,0.15)",
+            borderRadius: "6px",
+            border: "1px solid rgba(255,255,255,0.3)",
+            transition: "left 0.1s ease-out"
+          }}
+        />
+      </div>
+
       {/* Floating bottom navigation */}
       <div
         style={{
@@ -1946,9 +2059,9 @@ function HomeContent() {
           left: "12px",
           right: "12px",
           height: "64px",
-          backgroundColor: "#1d1d1f",
+          background: "linear-gradient(135deg, #111111 0%, #3a3a3c 100%)",
           border: "none",
-          borderRadius: "14px",
+          borderRadius: "32px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -1960,6 +2073,15 @@ function HomeContent() {
       >
         <button className="nav-btn" aria-label="Add" onClick={() => router.push("/story")}>
           <img src="/icons/plus.png" width={22} height={22} alt="Plus" className="brightness-0 invert" />
+        </button>
+
+        <button className="nav-btn md:hidden" aria-label="Floors" onClick={() => setShowFloorsModal(true)}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#8e8e93] hover:text-[#e5e5ea] transition-colors">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
         </button>
 
         <button className="nav-btn" aria-label="Enter room" onClick={() => { setLeaveFlow("options"); setShowLeaveModal(true); }}>
@@ -2185,6 +2307,20 @@ function HomeContent() {
           setTitle={setEventTitle}
           eventDate={eventDate}
           setEventDate={setEventDate}
+        />
+      )}
+
+      {/* Floors modal */}
+      {showFloorsModal && (
+        <FloorsModal
+          onClose={() => setShowFloorsModal(false)}
+          mapData={mapData}
+          activeRoom={activeRoom}
+          onEnter={handleEnter}
+          approvedGuests={approvedGuests}
+          isGuest={isGuest}
+          hostRoom={hostRoom}
+          userStatus={userStatus}
         />
       )}
     </div>

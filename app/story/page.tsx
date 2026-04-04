@@ -204,10 +204,10 @@ function StoryContent() {
       </div>
 
       {/* Main Content */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
 
         {/* LEFT PANEL */}
-        <div className="w-1/4 shrink-0 flex flex-col bg-[#111] border-r border-white/[0.07] overflow-hidden">
+        <div className="w-full md:w-1/4 h-[45%] md:h-auto shrink-0 flex flex-col bg-[#111] border-b md:border-b-0 md:border-r border-white/[0.07] overflow-hidden">
 
           {viewMode === "story" && viewingDate && viewingImages.length > 0 ? (
             /* ── Story player mode ── */
@@ -343,7 +343,7 @@ function StoryContent() {
 
         {/* RIGHT PANEL — background + calendar */}
         <div
-          className="flex-1 relative flex items-center justify-end pr-8"
+          className="flex-1 relative flex items-center justify-center md:justify-end md:pr-8"
           style={{
             backgroundImage: 'url("/backgrounds/story_background.png")',
             backgroundSize: "cover",
