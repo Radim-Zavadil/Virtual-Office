@@ -51,11 +51,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || "Login failed");
+
+    let data;
+    try {
+      const text = await res.text();
+      data = text ? JSON.parse(text) : {};
+    } catch (e) {
+      data = {};
     }
-    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || `Login failed with status ${res.status}`);
+    }
+
     setUser(data.user);
   };
 
@@ -65,11 +73,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || "Registration failed");
+
+    let data;
+    try {
+      const text = await res.text();
+      data = text ? JSON.parse(text) : {};
+    } catch (e) {
+      data = {};
     }
-    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || `Registration failed with status ${res.status}`);
+    }
+
     setUser(data.user);
   };
 
