@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
+import bcrypt from "bcryptjs";
+import crypto from "crypto";
 
 interface User {
   id: string;
