@@ -1,11 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
-import bcrypt from "bcryptjs";
-import crypto from "crypto";
-
-const USERS_FILE = path.join(process.cwd(), "data", "users.json");
-const SESSIONS_FILE = path.join(process.cwd(), "data", "sessions.json");
+import { redis } from "@/lib/redis";
 
 interface User {
   id: string;
@@ -20,27 +14,18 @@ interface Session {
   userId: string;
 }
 
-function readUsers(): User[] {
-  try {
-    return JSON.parse(fs.readFileSync(USERS_FILE, "utf-8"));
-  } catch {
-    return [];
-  }
+async function readUsers(): Promise<User[]> {
+  const users = await redis.get<User[]>("users");
+  return users || [];
 }
 
-function readSessions(): Session[] {
-  try {
-    return JSON.parse(fs.readFileSync(SESSIONS_FILE, "utf-8"));
-  } catch {
-    return [];
-  }
+async function readSessions(): Promise<Session[]> {
+  const sessions = await redis.get<Session[]>("sessions");
+  return sessions || [];
 }
 
-function writeSessions(sessions: Session[]) {
-  if (!fs.existsSync(path.dirname(SESSIONS_FILE))) {
-    fs.mkdirSync(path.dirname(SESSIONS_FILE), { recursive: true });
-  }
-  fs.writeFileSync(SESSIONS_FILE, JSON.stringify(sessions, null, 2));
+async function writeSessions(sessions: Session[]) {
+  await redis.set("sessions", sessions);
 }
 
 export async function POST(req: NextRequest) {
@@ -52,7 +37,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Email and password required" }, { status: 400 });
     }
 
-    const users = readUsers();
+    const users = await readUsers();
     console.log(`[LOGIN] Found ${users.length} users in database`);
 
     const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
@@ -73,9 +58,9 @@ export async function POST(req: NextRequest) {
     // Create session
     console.log(`[LOGIN] Creating session for user: ${user.id}`);
     const token = crypto.randomBytes(32).toString("hex");
-    const sessions = readSessions();
+    const sessions = await readSessions();
     sessions.push({ token, userId: user.id });
-    writeSessions(sessions);
+    await writeSessions(sessions);
 
     const res = NextResponse.json({
       user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar },

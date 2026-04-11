@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { redis } from "@/lib/redis";
 import crypto from "crypto";
-
-const CORPORATES_FILE = path.join(process.cwd(), "data", "corporates.json");
-const SESSIONS_FILE = path.join(process.cwd(), "data", "sessions.json");
-const MAPS_DIR = path.join(process.cwd(), "data", "maps");
-const DEFAULT_MAP_PATH = path.join(process.cwd(), "data", "map.json");
 
 interface Corporate {
   id: string;
@@ -20,45 +14,39 @@ interface Session {
   userId: string;
 }
 
-function readCorporates(): Corporate[] {
-  try {
-    return JSON.parse(fs.readFileSync(CORPORATES_FILE, "utf-8"));
-  } catch {
-    return [];
-  }
+async function readCorporates(): Promise<Corporate[]> {
+  const corporates = await redis.get<Corporate[]>("corporates");
+  return corporates || [];
 }
 
-function writeCorporates(corporates: Corporate[]) {
-  fs.writeFileSync(CORPORATES_FILE, JSON.stringify(corporates, null, 2));
+async function writeCorporates(corporates: Corporate[]) {
+  await redis.set("corporates", corporates);
 }
 
-function readSessions(): Session[] {
-  try {
-    return JSON.parse(fs.readFileSync(SESSIONS_FILE, "utf-8"));
-  } catch {
-    return [];
-  }
+async function readSessions(): Promise<Session[]> {
+  const sessions = await redis.get<Session[]>("sessions");
+  return sessions || [];
 }
 
-function getUserIdFromRequest(req: NextRequest): string | null {
+async function getUserIdFromRequest(req: NextRequest): Promise<string | null> {
   const token = req.cookies.get("session")?.value;
   if (!token) return null;
-  const sessions = readSessions();
+  const sessions = await readSessions();
   const session = sessions.find((s) => s.token === token);
   return session?.userId ?? null;
 }
 
 export async function GET(req: NextRequest) {
-  const userId = getUserIdFromRequest(req);
+  const userId = await getUserIdFromRequest(req);
   if (!userId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  const corporates = readCorporates();
+  const corporates = await readCorporates();
   const userCorporates = corporates.filter((c) => c.ownerId === userId);
   return NextResponse.json({ corporates: userCorporates });
 }
 
 export async function POST(req: NextRequest) {
-  const userId = getUserIdFromRequest(req);
+  const userId = await getUserIdFromRequest(req);
   if (!userId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
   const { name } = await req.json();
@@ -72,36 +60,32 @@ export async function POST(req: NextRequest) {
     createdAt: new Date().toISOString(),
   };
 
-  const corporates = readCorporates();
+  const corporates = await readCorporates();
   corporates.push(corporate);
-  writeCorporates(corporates);
+  await writeCorporates(corporates);
 
   // Initialize corporate map with default map template
-  if (!fs.existsSync(MAPS_DIR)) fs.mkdirSync(MAPS_DIR, { recursive: true });
   try {
-    const defaultMap = fs.readFileSync(DEFAULT_MAP_PATH, "utf-8");
-    fs.writeFileSync(path.join(MAPS_DIR, `${corporateId}.json`), defaultMap);
+    const defaultMap = await redis.get("map:default");
+    await redis.set(`map:${corporateId}`, defaultMap);
   } catch (err) {
-    console.error("Failed to initialize corporate map:", err);
+    console.error("Failed to initialize corporate map in Redis:", err);
   }
 
   return NextResponse.json({ corporate });
 }
 
 export async function DELETE(req: NextRequest) {
-  const userId = getUserIdFromRequest(req);
+  const userId = await getUserIdFromRequest(req);
   if (!userId) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
   const { id } = await req.json();
-  const corporates = readCorporates();
+  const corporates = await readCorporates();
   const filtered = corporates.filter((c) => !(c.id === id && c.ownerId === userId));
-  writeCorporates(filtered);
+  await writeCorporates(filtered);
 
-  // Optionally delete map file as well
-  const mapPath = path.join(MAPS_DIR, `${id}.json`);
-  if (fs.existsSync(mapPath)) {
-    fs.unlinkSync(mapPath);
-  }
+  // Optionally delete map key as well
+  await redis.del(`map:${id}`);
 
   return NextResponse.json({ success: true });
 }

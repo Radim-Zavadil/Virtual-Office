@@ -1,27 +1,36 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-
-const dataFile = path.join(process.cwd(), 'data', 'lobby.json');
+import { redis } from "@/lib/redis";
 
 export async function GET() {
   try {
-    const data = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
+    const data: any = await redis.get('lobby') || { active: false, linkId: null, guests: [], approvedGuests: [] };
     
     // Filter stale guests (lastSeen > 20s ago)
     const now = Date.now();
     const staleThreshold = 20000; // 20 seconds
     
+    let changed = false;
     if (data.guests) {
+      const originalCount = data.guests.length;
       data.guests = data.guests.filter((g: any) => g.lastSeen && (now - g.lastSeen) < staleThreshold);
+      if (data.guests.length !== originalCount) changed = true;
     }
     if (data.approvedGuests) {
+      const originalCount = data.approvedGuests.length;
       data.approvedGuests = data.approvedGuests.filter((g: any) => g.lastSeen && (now - g.lastSeen) < staleThreshold);
+      if (data.approvedGuests.length !== originalCount) changed = true;
     }
     
     // Clear hostRoom if stale
     if (data.hostLastSeen && (now - data.hostLastSeen) > staleThreshold) {
-      data.hostRoom = null;
+      if (data.hostRoom !== null) {
+        data.hostRoom = null;
+        changed = true;
+      }
+    }
+    
+    if (changed) {
+      await redis.set('lobby', data);
     }
     
     return NextResponse.json(data);
@@ -33,7 +42,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const currentData = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
+    const currentData: any = await redis.get('lobby') || { active: false, linkId: null, guests: [], approvedGuests: [] };
 
     let newData = { ...currentData };
     if (!newData.approvedGuests) {
@@ -52,9 +61,10 @@ export async function POST(request: Request) {
     } else if (body.action === 'add_guest') {
       const guest = {
         id: body.guest.id,
-        name: `Guest ${newData.guests.length + 1}`,
+        name: `Guest ${(newData.guests?.length || 0) + 1}`,
         lastSeen: Date.now(),
       };
+      if (!newData.guests) newData.guests = [];
       if (!newData.guests.find((g: any) => g.id === guest.id)) {
         newData.guests.push(guest);
       }
@@ -96,7 +106,7 @@ export async function POST(request: Request) {
       newData.approvedGuests = newData.approvedGuests?.filter((g: any) => g.id !== gId) || [];
     }
 
-    fs.writeFileSync(dataFile, JSON.stringify(newData, null, 2));
+    await redis.set('lobby', newData);
     return NextResponse.json(newData);
   } catch (error) {
     console.error("POST /api/lobby error:", error);

@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { redis } from "@/lib/redis";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-
-const USERS_FILE = path.join(process.cwd(), "data", "users.json");
-const SESSIONS_FILE = path.join(process.cwd(), "data", "sessions.json");
 
 interface User {
   id: string;
@@ -20,31 +16,22 @@ interface Session {
   userId: string;
 }
 
-function readUsers(): User[] {
-  try {
-    return JSON.parse(fs.readFileSync(USERS_FILE, "utf-8"));
-  } catch {
-    return [];
-  }
+async function readUsers(): Promise<User[]> {
+  const users = await redis.get<User[]>("users");
+  return users || [];
 }
 
-function writeUsers(users: User[]) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+async function writeUsers(users: User[]) {
+  await redis.set("users", users);
 }
 
-function readSessions(): Session[] {
-  try {
-    return JSON.parse(fs.readFileSync(SESSIONS_FILE, "utf-8"));
-  } catch {
-    return [];
-  }
+async function readSessions(): Promise<Session[]> {
+  const sessions = await redis.get<Session[]>("sessions");
+  return sessions || [];
 }
 
-function writeSessions(sessions: Session[]) {
-  if (!fs.existsSync(path.dirname(SESSIONS_FILE))) {
-    fs.mkdirSync(path.dirname(SESSIONS_FILE), { recursive: true });
-  }
-  fs.writeFileSync(SESSIONS_FILE, JSON.stringify(sessions, null, 2));
+async function writeSessions(sessions: Session[]) {
+  await redis.set("sessions", sessions);
 }
 
 export async function POST(req: NextRequest) {
@@ -56,7 +43,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Email and password required" }, { status: 400 });
     }
 
-    const users = readUsers();
+    const users = await readUsers();
     const existingUser = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
 
     if (existingUser) {
@@ -75,14 +62,14 @@ export async function POST(req: NextRequest) {
     };
 
     users.push(newUser);
-    writeUsers(users);
+    await writeUsers(users);
     console.log(`[REGISTER] User created: ${newUser.id}`);
 
     // Create session
     const token = crypto.randomBytes(32).toString("hex");
-    const sessions = readSessions();
+    const sessions = await readSessions();
     sessions.push({ token, userId: newUser.id });
-    writeSessions(sessions);
+    await writeSessions(sessions);
 
     const res = NextResponse.json({
       user: { id: newUser.id, email: newUser.email, name: newUser.name, avatar: newUser.avatar },

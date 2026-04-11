@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
-
-const USERS_FILE = path.join(process.cwd(), "data", "users.json");
-const SESSIONS_FILE = path.join(process.cwd(), "data", "sessions.json");
+import { redis } from "@/lib/redis";
 
 interface User {
   id: string;
@@ -18,24 +14,18 @@ interface Session {
   userId: string;
 }
 
-function readUsers(): User[] {
-  try {
-    return JSON.parse(fs.readFileSync(USERS_FILE, "utf-8"));
-  } catch {
-    return [];
-  }
+async function readUsers(): Promise<User[]> {
+  const users = await redis.get<User[]>("users");
+  return users || [];
 }
 
-function writeUsers(users: User[]) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+async function writeUsers(users: User[]) {
+  await redis.set("users", users);
 }
 
-function readSessions(): Session[] {
-  try {
-    return JSON.parse(fs.readFileSync(SESSIONS_FILE, "utf-8"));
-  } catch {
-    return [];
-  }
+async function readSessions(): Promise<Session[]> {
+  const sessions = await redis.get<Session[]>("sessions");
+  return sessions || [];
 }
 
 export async function PATCH(req: NextRequest) {
@@ -44,7 +34,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const sessions = readSessions();
+  const sessions = await readSessions();
   const session = sessions.find((s) => s.token === token);
   if (!session) {
     return NextResponse.json({ error: "Invalid session" }, { status: 401 });
@@ -52,7 +42,7 @@ export async function PATCH(req: NextRequest) {
 
   const { name, avatar } = await req.json();
 
-  const users = readUsers();
+  const users = await readUsers();
   const userIndex = users.findIndex((u) => u.id === session.userId);
   if (userIndex === -1) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -61,7 +51,7 @@ export async function PATCH(req: NextRequest) {
   if (name !== undefined) users[userIndex].name = name;
   if (avatar !== undefined) users[userIndex].avatar = avatar;
 
-  writeUsers(users);
+  await writeUsers(users);
 
   const user = users[userIndex];
   return NextResponse.json({
